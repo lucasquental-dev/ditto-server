@@ -48,22 +48,27 @@ app.get('/buscar-instagram', async (req, res) => {
     const runRes = await fetch('https://api.apify.com/v2/acts/apify~instagram-search-scraper/runs?token=' + APIFY_KEY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        searchType: 'user',
-        searchQueries: [nome],
-        resultsLimit: 3
-      })
+      body: JSON.stringify({ searchType: 'user', searchQueries: [nome], resultsLimit: 3 })
     });
 
     const runData = await runRes.json();
     const runId = runData.data?.id;
     if (!runId) return res.json({ instagram: null });
 
-    await new Promise(r => setTimeout(r, 8000));
+    let status = 'RUNNING';
+    let tentativas = 0;
+    while (status === 'RUNNING' && tentativas < 20) {
+      await new Promise(r => setTimeout(r, 3000));
+      const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
+      const statusData = await statusRes.json();
+      status = statusData.data?.status || 'FAILED';
+      tentativas++;
+    }
+
+    if (status !== 'SUCCEEDED') return res.json({ instagram: null });
 
     const resultRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_KEY}`);
     const items = await resultRes.json();
-
     if (!items || items.length === 0) return res.json({ instagram: null });
 
     const nomeNormalizado = nome.toLowerCase().replace(/[^a-z0-9]/g, '');
