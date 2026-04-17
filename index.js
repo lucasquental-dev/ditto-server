@@ -7,13 +7,13 @@ app.use(cors());
 app.use(express.json());
 
 const MAPS_KEY = process.env.MAPS_KEY;
+const APIFY_KEY = process.env.APIFY_KEY;
 
 app.get('/maps/textsearch', async (req, res) => {
   try {
     const params = new URLSearchParams({...req.query, key: MAPS_KEY});
     const response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`);
-    const data = await response.json();
-    res.json(data);
+    res.json(await response.json());
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -21,8 +21,7 @@ app.get('/maps/details', async (req, res) => {
   try {
     const params = new URLSearchParams({...req.query, key: MAPS_KEY});
     const response = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?${params}`);
-    const data = await response.json();
-    res.json(data);
+    res.json(await response.json());
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -30,40 +29,59 @@ app.get('/maps/findplace', async (req, res) => {
   try {
     const params = new URLSearchParams({...req.query, key: MAPS_KEY});
     const response = await fetch(`https://maps.googleapis.com/maps/api/place/findplacefromtext/json?${params}`);
-    const data = await response.json();
-    res.json(data);
+    res.json(await response.json());
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/fetch-html', async (req, res) => {
   try {
     const response = await fetch(req.query.url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    const html = await response.text();
-    res.json({ contents: html });
+    res.json({ contents: await response.text() });
   } catch(e) { res.json({ contents: '' }); }
 });
 
-app.get('/cnpj/:cnpj', async (req, res) => {
+app.get('/buscar-instagram', async (req, res) => {
   try {
-    const cnpj = req.params.cnpj.replace(/\D/g, '');
-    const response = await fetch(`https://publica.cnpj.ws/cnpj/${cnpj}`, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
-    const data = await response.json();
-    res.json(data);
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
+    const { nome } = req.query;
+    if (!nome) return res.json({ instagram: null });
 
-app.get('/buscar-cnpj', async (req, res) => {
-  try {
-    const { nome, municipio } = req.query;
-    const url = `https://publica.cnpj.ws/cnpj/busca?q=${encodeURIComponent(nome)}&municipio=${encodeURIComponent(municipio || '')}&status=A`;
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
+    const runRes = await fetch('https://api.apify.com/v2/acts/apify~instagram-search-scraper/runs?token=' + APIFY_KEY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        searchType: 'user',
+        searchQueries: [nome],
+        resultsLimit: 3
+      })
     });
-    const data = await response.json();
-    res.json(data);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+
+    const runData = await runRes.json();
+    const runId = runData.data?.id;
+    if (!runId) return res.json({ instagram: null });
+
+    await new Promise(r => setTimeout(r, 8000));
+
+    const resultRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_KEY}`);
+    const items = await resultRes.json();
+
+    if (!items || items.length === 0) return res.json({ instagram: null });
+
+    const nomeNormalizado = nome.toLowerCase().replace(/[^a-z0-9]/g, '');
+    let melhor = null;
+    let melhorScore = 0;
+
+    for (const item of items) {
+      const username = (item.username || '').toLowerCase();
+      const fullName = (item.fullName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const score = username.includes(nomeNormalizado.slice(0,6)) || fullName.includes(nomeNormalizado.slice(0,6)) ? 2 : 1;
+      if (score > melhorScore) { melhor = item; melhorScore = score; }
+    }
+
+    res.json({ instagram: melhor ? '@' + melhor.username : null });
+  } catch(e) {
+    console.error('Instagram error:', e);
+    res.json({ instagram: null });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
