@@ -42,81 +42,60 @@ app.get('/fetch-html', async (req, res) => {
 
 app.get('/buscar-instagram', async (req, res) => {
   try {
-    const { nome } = req.query;
-    if (!nome) return res.json({ instagram: null });
+    const { site, nome } = req.query;
+    
+    // Estrategia 1: extrair username do site
+    // Ex: seguroslar.com.br -> seguroslar
+    if (site) {
+      const domain = site.replace(/https?:\/\//i, '').replace(/www\./i, '').split('/')[0].split('.')[0];
+      if (domain && domain.length > 3) {
+        const checkRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-profile-scraper/runs?token=${APIFY_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usernames: [domain] })
+        });
+        const checkData = await checkRes.json();
+        const runId = checkData.data?.id;
 
-    const runRes = await fetch('https://api.apify.com/v2/acts/apify~instagram-search-scraper/runs?token=' + APIFY_KEY, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ searchType: 'user', searchQueries: [nome], resultsLimit: 3 })
-    });
+        if (runId) {
+          let status = 'RUNNING';
+          let tentativas = 0;
+          while (status === 'RUNNING' && tentativas < 15) {
+            await new Promise(r => setTimeout(r, 3000));
+            const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
+            const statusData = await statusRes.json();
+            status = statusData.data?.status || 'FAILED';
+            tentativas++;
+          }
 
-    const runData = await runRes.json();
-    const runId = runData.data?.id;
-    if (!runId) return res.json({ instagram: null });
-
-    let status = 'RUNNING';
-    let tentativas = 0;
-    while (status === 'RUNNING' && tentativas < 20) {
-      await new Promise(r => setTimeout(r, 3000));
-      const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
-      const statusData = await statusRes.json();
-      status = statusData.data?.status || 'FAILED';
-      tentativas++;
+          if (status === 'SUCCEEDED') {
+            const resultRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_KEY}`);
+            const items = await resultRes.json();
+            if (items && items.length > 0 && items[0].username) {
+              return res.json({ instagram: '@' + items[0].username, fonte: 'site' });
+            }
+          }
+        }
+      }
     }
 
-    if (status !== 'SUCCEEDED') return res.json({ instagram: null });
-
-    const resultRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_KEY}`);
-    const items = await resultRes.json();
-    if (!items || items.length === 0) return res.json({ instagram: null });
-
-    const nomeNormalizado = nome.toLowerCase().replace(/[^a-z0-9]/g, '');
-    let melhor = null;
-    let melhorScore = 0;
-
-    for (const item of items) {
-      const username = (item.username || '').toLowerCase();
-      const fullName = (item.fullName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const score = username.includes(nomeNormalizado.slice(0,6)) || fullName.includes(nomeNormalizado.slice(0,6)) ? 2 : 1;
-      if (score > melhorScore) { melhor = item; melhorScore = score; }
+    // Estrategia 2: buscar no HTML do site
+    if (site) {
+      try {
+        const htmlRes = await fetch(site, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const html = await htmlRes.text();
+        const match = html.match(/instagram\.com\/([a-zA-Z0-9_.]+)/i);
+        if (match && !['p','reel','explore','accounts','sharer'].includes(match[1])) {
+          return res.json({ instagram: '@' + match[1], fonte: 'html' });
+        }
+      } catch(e) {}
     }
 
-    res.json({ instagram: melhor ? '@' + melhor.username : null });
+    return res.json({ instagram: null });
   } catch(e) {
     console.error('Instagram error:', e);
     res.json({ instagram: null });
   }
-});
-
-app.get('/debug-instagram', async (req, res) => {
-  try {
-    const { nome } = req.query;
-
-    const runRes = await fetch('https://api.apify.com/v2/acts/apify~instagram-search-scraper/runs?token=' + APIFY_KEY, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ searchType: 'user', searchQueries: [nome], resultsLimit: 5 })
-    });
-
-    const runData = await runRes.json();
-    const runId = runData.data?.id;
-
-    let status = 'RUNNING';
-    let tentativas = 0;
-    while (status === 'RUNNING' && tentativas < 20) {
-      await new Promise(r => setTimeout(r, 3000));
-      const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
-      const statusData = await statusRes.json();
-      status = statusData.data?.status || 'FAILED';
-      tentativas++;
-    }
-
-    const resultRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_KEY}`);
-    const items = await resultRes.json();
-
-    res.json({ runId, status, total: items.length, items: items.map(i => ({ username: i.username, fullName: i.fullName, followersCount: i.followersCount })) });
-  } catch(e) { res.json({ error: e.message }); }
 });
 
 const PORT = process.env.PORT || 3000;
