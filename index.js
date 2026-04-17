@@ -89,5 +89,35 @@ app.get('/buscar-instagram', async (req, res) => {
   }
 });
 
+app.get('/debug-instagram', async (req, res) => {
+  try {
+    const { nome } = req.query;
+
+    const runRes = await fetch('https://api.apify.com/v2/acts/apify~instagram-search-scraper/runs?token=' + APIFY_KEY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ searchType: 'user', searchQueries: [nome], resultsLimit: 5 })
+    });
+
+    const runData = await runRes.json();
+    const runId = runData.data?.id;
+
+    let status = 'RUNNING';
+    let tentativas = 0;
+    while (status === 'RUNNING' && tentativas < 20) {
+      await new Promise(r => setTimeout(r, 3000));
+      const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
+      const statusData = await statusRes.json();
+      status = statusData.data?.status || 'FAILED';
+      tentativas++;
+    }
+
+    const resultRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_KEY}`);
+    const items = await resultRes.json();
+
+    res.json({ runId, status, total: items.length, items: items.map(i => ({ username: i.username, fullName: i.fullName, followersCount: i.followersCount })) });
+  } catch(e) { res.json({ error: e.message }); }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
