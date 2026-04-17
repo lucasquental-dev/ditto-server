@@ -103,16 +103,15 @@ app.get('/analisar-layout', async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        url: site,
-        waitUntil: 'domcontentloaded',
-        delay: 1000,
-        viewportWidth: 1280,
-        viewportHeight: 800
+        urls: [{ url: site }],
+        waitUntil: 'load',
+        delay: 500
       })
     });
 
     const runData = await runRes.json();
     const runId = runData.data?.id;
+    const kvStoreId = runData.data?.defaultKeyValueStoreId;
     if (!runId) return res.json({ erro: 'Erro ao iniciar screenshot', detalhe: JSON.stringify(runData) });
 
     // Aguarda o screenshot ficar pronto
@@ -128,9 +127,16 @@ app.get('/analisar-layout', async (req, res) => {
 
     if (status !== 'SUCCEEDED') return res.json({ erro: 'Screenshot falhou', status });
 
-    // Pega o screenshot do key-value store
-    const kvStoreId = runData.data?.defaultKeyValueStoreId;
-    const screenshotRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/screenshot?token=${APIFY_KEY}`);
+    // Lista as chaves do key-value store para achar o screenshot
+    const keysRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/keys?token=${APIFY_KEY}`);
+    const keysData = await keysRes.json();
+    const keys = keysData.data?.items || [];
+    
+    // Pega a primeira chave que pareça ser um screenshot
+    const screenshotKey = keys.find(k => k.key.toLowerCase().includes('screenshot') || k.contentType?.includes('image'));
+    if (!screenshotKey) return res.json({ erro: 'Screenshot não encontrado', keys: keys.map(k => k.key) });
+
+    const screenshotRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${screenshotKey.key}?token=${APIFY_KEY}`);
     const screenshotBuffer = await screenshotRes.buffer();
     const screenshotBase64 = screenshotBuffer.toString('base64');
 
