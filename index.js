@@ -8,7 +8,6 @@ app.use(express.json());
 
 const MAPS_KEY = process.env.MAPS_KEY;
 const APIFY_KEY = process.env.APIFY_KEY;
-const GEMINI_KEY = process.env.GEMINI_KEY;
 
 app.get('/maps/textsearch', async (req, res) => {
   try {
@@ -91,34 +90,6 @@ app.get('/buscar-instagram', async (req, res) => {
     }
     return res.json({ instagram: null });
   } catch(e) { res.json({ instagram: null }); }
-});
-
-app.get('/analisar-layout', async (req, res) => {
-  try {
-    const { site } = req.query;
-    if (!site) return res.json({ erro: 'Site não informado' });
-
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: `Você é um especialista em design e marketing digital brasileiro. Acesse e analise o site ${site} e retorne APENAS um JSON válido sem markdown:\n{"nota": número de 1 a 10,"transmite_confianca": true ou false,"pontos_positivos": ["ponto 1", "ponto 2"],"pontos_negativos": ["ponto 1", "ponto 2"],"resumo": "frase curta e direta sobre o site em português"}` }
-          ]
-        }],
-        tools: [{ url_context: {} }]
-      })
-    });
-
-    const geminiData = await geminiRes.json();
-    const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    const resultado = JSON.parse(text.replace(/```json|```/g, '').trim());
-    res.json(resultado);
-
-  } catch(e) {
-    res.json({ erro: e.message });
-  }
 });
 
 const PORT = process.env.PORT || 3000;
