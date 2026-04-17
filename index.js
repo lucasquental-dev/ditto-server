@@ -1,7 +1,8 @@
 const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium');
 
 const app = express();
 app.use(cors());
@@ -49,7 +50,6 @@ app.get('/buscar-instagram', async (req, res) => {
   try {
     const { site } = req.query;
     if (!site) return res.json({ instagram: null });
-
     try {
       const htmlRes = await fetch(site, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
@@ -61,7 +61,6 @@ app.get('/buscar-instagram', async (req, res) => {
         return res.json({ instagram: '@' + match[1] });
       }
     } catch(e) {}
-
     const domain = site.replace(/https?:\/\//i, '').replace(/www\./i, '').split('/')[0].split('.')[0];
     if (domain && domain.length > 3) {
       try {
@@ -92,11 +91,8 @@ app.get('/buscar-instagram', async (req, res) => {
         }
       } catch(e) {}
     }
-
     return res.json({ instagram: null });
-  } catch(e) {
-    res.json({ instagram: null });
-  }
+  } catch(e) { res.json({ instagram: null }); }
 });
 
 app.get('/analisar-layout', async (req, res) => {
@@ -106,9 +102,12 @@ app.get('/analisar-layout', async (req, res) => {
     if (!site) return res.json({ erro: 'Site não informado' });
 
     browser = await puppeteer.launch({
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      headless: 'new'
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless
     });
+
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
     await page.goto(site, { waitUntil: 'networkidle2', timeout: 30000 });
@@ -122,15 +121,8 @@ app.get('/analisar-layout', async (req, res) => {
       body: JSON.stringify({
         contents: [{
           parts: [
-            {
-              inline_data: {
-                mime_type: 'image/png',
-                data: screenshot
-              }
-            },
-            {
-              text: `Você é um especialista em design e marketing digital. Analise o layout desse site e retorne APENAS um JSON válido sem markdown:\n{"nota": número de 1 a 10,"transmite_confianca": true ou false,"pontos_positivos": ["ponto 1", "ponto 2"],"pontos_negativos": ["ponto 1", "ponto 2"],"resumo": "frase curta e direta sobre o site"}`
-            }
+            { inline_data: { mime_type: 'image/png', data: screenshot } },
+            { text: `Você é um especialista em design e marketing digital. Analise o layout desse site e retorne APENAS um JSON válido sem markdown:\n{"nota": número de 1 a 10,"transmite_confianca": true ou false,"pontos_positivos": ["ponto 1", "ponto 2"],"pontos_negativos": ["ponto 1", "ponto 2"],"resumo": "frase curta e direta sobre o site"}` }
           ]
         }]
       })
