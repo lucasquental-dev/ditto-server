@@ -35,60 +35,61 @@ app.get('/maps/findplace', async (req, res) => {
 
 app.get('/fetch-html', async (req, res) => {
   try {
-    const response = await fetch(req.query.url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const response = await fetch(req.query.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 });
     res.json({ contents: await response.text() });
   } catch(e) { res.json({ contents: '' }); }
 });
 
-app.get('/buscar-instagram', async (req, res) => {
+async function verificarUsernameApify(username) {
   try {
-    const { site, nome } = req.query;
-    
-    // Estrategia 1: extrair username do site
-    // Ex: seguroslar.com.br -> seguroslar
-    if (site) {
-      const domain = site.replace(/https?:\/\//i, '').replace(/www\./i, '').split('/')[0].split('.')[0];
-      if (domain && domain.length > 3) {
-        const checkRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-profile-scraper/runs?token=${APIFY_KEY}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ usernames: [domain] })
-        });
-        const checkData = await checkRes.json();
-        const runId = checkData.data?.id;
+    const runRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-profile-scraper/runs?token=${APIFY_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usernames: [username] })
+    });
+    const runData = await runRes.json();
+    const runId = runData.data?.id;
+    if (!runId) return null;
 
-        if (runId) {
-          let status = 'RUNNING';
-          let tentativas = 0;
-          while (status === 'RUNNING' && tentativas < 15) {
-            await new Promise(r => setTimeout(r, 3000));
-            const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
-            const statusData = await statusRes.json();
-            status = statusData.data?.status || 'FAILED';
-            tentativas++;
-          }
-
-          if (status === 'SUCCEEDED') {
-            const resultRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_KEY}`);
-            const items = await resultRes.json();
-            if (items && items.length > 0 && items[0].username) {
-              return res.json({ instagram: '@' + items[0].username, fonte: 'site' });
-            }
-          }
-        }
-      }
+    let status = 'RUNNING';
+    let tentativas = 0;
+    while (status === 'RUNNING' && tentativas < 15) {
+      await new Promise(r => setTimeout(r, 2000));
+      const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
+      const statusData = await statusRes.json();
+      status = statusData.data?.status || 'FAILED';
+      tentativas++;
     }
 
-    // Estrategia 2: buscar no HTML do site
-    if (site) {
-      try {
-        const htmlRes = await fetch(site, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        const html = await htmlRes.text();
-        const match = html.match(/instagram\.com\/([a-zA-Z0-9_.]+)/i);
-        if (match && !['p','reel','explore','accounts','sharer'].includes(match[1])) {
-          return res.json({ instagram: '@' + match[1], fonte: 'html' });
-        }
-      } catch(e) {}
+    if (status !== 'SUCCEEDED') return null;
+
+    const resultRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_KEY}`);
+    const items = await resultRes.json();
+    if (items && items.length > 0 && items[0].username) return '@' + items[0].username;
+    return null;
+  } catch(e) { return null; }
+}
+
+app.get('/buscar-instagram', async (req, res) => {
+  try {
+    const { site } = req.query;
+    if (!site) return res.json({ instagram: null });
+
+    // Etapa 1: busca no HTML do site (instantâneo)
+    try {
+      const htmlRes = await fetch(site, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 8000 });
+      const html = await htmlRes.text();
+      const match = html.match(/instagram\.com\/([a-zA-Z0-9_.]+)/i);
+      if (match && !['p','reel','explore','accounts','sharer','share'].includes(match[1])) {
+        return res.json({ instagram: '@' + match[1], fonte: 'html' });
+      }
+    } catch(e) {}
+
+    // Etapa 2: tenta o domínio do site como username no Instagram
+    const domain = site.replace(/https?:\/\//i, '').replace(/www\./i, '').split('/')[0].split('.')[0];
+    if (domain && domain.length > 3) {
+      const instagram = await verificarUsernameApify(domain);
+      if (instagram) return res.json({ instagram, fonte: 'dominio' });
     }
 
     return res.json({ instagram: null });
