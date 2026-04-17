@@ -98,59 +98,16 @@ app.get('/analisar-layout', async (req, res) => {
     const { site } = req.query;
     if (!site) return res.json({ erro: 'Site não informado' });
 
-    // Etapa 1: tirar screenshot via Apify
-    const runRes = await fetch(`https://api.apify.com/v2/acts/apify~screenshot-url/runs?token=${APIFY_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        urls: [{ url: site }],
-        waitUntil: 'load',
-        delay: 500
-      })
-    });
-
-    const runData = await runRes.json();
-    const runId = runData.data?.id;
-    const kvStoreId = runData.data?.defaultKeyValueStoreId;
-    if (!runId) return res.json({ erro: 'Erro ao iniciar screenshot', detalhe: JSON.stringify(runData) });
-
-    // Aguarda o screenshot ficar pronto
-    let status = 'RUNNING';
-    let tentativas = 0;
-    while (status === 'RUNNING' && tentativas < 20) {
-      await new Promise(r => setTimeout(r, 3000));
-      const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
-      const statusData = await statusRes.json();
-      status = statusData.data?.status || 'FAILED';
-      tentativas++;
-    }
-
-    if (status !== 'SUCCEEDED') return res.json({ erro: 'Screenshot falhou', status });
-
-    // Lista as chaves do key-value store para achar o screenshot
-    const keysRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/keys?token=${APIFY_KEY}`);
-    const keysData = await keysRes.json();
-    const keys = keysData.data?.items || [];
-    
-    // Pega a primeira chave que pareça ser um screenshot
-    const screenshotKey = keys.find(k => k.key.toLowerCase().includes('screenshot') || k.contentType?.includes('image'));
-    if (!screenshotKey) return res.json({ erro: 'Screenshot não encontrado', keys: keys.map(k => k.key) });
-
-    const screenshotRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${screenshotKey.key}?token=${APIFY_KEY}`);
-    const screenshotBuffer = await screenshotRes.buffer();
-    const screenshotBase64 = screenshotBuffer.toString('base64');
-
-    // Etapa 2: manda para o Gemini analisar
     const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{
           parts: [
-            { inline_data: { mime_type: 'image/png', data: screenshotBase64 } },
-            { text: `Você é um especialista em design e marketing digital brasileiro. Analise o layout desse site e retorne APENAS um JSON válido sem markdown:\n{"nota": número de 1 a 10,"transmite_confianca": true ou false,"pontos_positivos": ["ponto 1", "ponto 2"],"pontos_negativos": ["ponto 1", "ponto 2"],"resumo": "frase curta e direta sobre o site em português"}` }
+            { text: `Você é um especialista em design e marketing digital brasileiro. Acesse e analise o site ${site} e retorne APENAS um JSON válido sem markdown:\n{"nota": número de 1 a 10,"transmite_confianca": true ou false,"pontos_positivos": ["ponto 1", "ponto 2"],"pontos_negativos": ["ponto 1", "ponto 2"],"resumo": "frase curta e direta sobre o site em português"}` }
           ]
-        }]
+        }],
+        tools: [{ url_context: {} }]
       })
     });
 
