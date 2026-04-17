@@ -104,16 +104,16 @@ app.get('/analisar-layout', async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         url: site,
-        waitUntil: 'networkidle2',
-        fullPage: false,
-        width: 1280,
-        height: 800
+        waitUntil: 'domcontentloaded',
+        delay: 1000,
+        viewportWidth: 1280,
+        viewportHeight: 800
       })
     });
 
     const runData = await runRes.json();
     const runId = runData.data?.id;
-    if (!runId) return res.json({ erro: 'Erro ao iniciar screenshot' });
+    if (!runId) return res.json({ erro: 'Erro ao iniciar screenshot', detalhe: JSON.stringify(runData) });
 
     // Aguarda o screenshot ficar pronto
     let status = 'RUNNING';
@@ -126,11 +126,12 @@ app.get('/analisar-layout', async (req, res) => {
       tentativas++;
     }
 
-    if (status !== 'SUCCEEDED') return res.json({ erro: 'Screenshot falhou' });
+    if (status !== 'SUCCEEDED') return res.json({ erro: 'Screenshot falhou', status });
 
-    // Pega o screenshot
-    const kvRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/key-value-stores/default/records/screenshot?token=${APIFY_KEY}`);
-    const screenshotBuffer = await kvRes.buffer();
+    // Pega o screenshot do key-value store
+    const kvStoreId = runData.data?.defaultKeyValueStoreId;
+    const screenshotRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/screenshot?token=${APIFY_KEY}`);
+    const screenshotBuffer = await screenshotRes.buffer();
     const screenshotBase64 = screenshotBuffer.toString('base64');
 
     // Etapa 2: manda para o Gemini analisar
