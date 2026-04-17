@@ -1,6 +1,7 @@
 const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
+const puppeteer = require('puppeteer');
 
 const app = express();
 app.use(cors());
@@ -8,6 +9,7 @@ app.use(express.json());
 
 const MAPS_KEY = process.env.MAPS_KEY;
 const APIFY_KEY = process.env.APIFY_KEY;
+const GEMINI_KEY = process.env.GEMINI_KEY;
 
 app.get('/maps/textsearch', async (req, res) => {
   try {
@@ -48,7 +50,6 @@ app.get('/buscar-instagram', async (req, res) => {
     const { site } = req.query;
     if (!site) return res.json({ instagram: null });
 
-    // Etapa 1: busca o link do Instagram no HTML do site
     try {
       const htmlRes = await fetch(site, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
@@ -61,7 +62,6 @@ app.get('/buscar-instagram', async (req, res) => {
       }
     } catch(e) {}
 
-    // Etapa 2: tenta o domínio como username via Apify
     const domain = site.replace(/https?:\/\//i, '').replace(/www\./i, '').split('/')[0].split('.')[0];
     if (domain && domain.length > 3) {
       try {
@@ -96,6 +96,54 @@ app.get('/buscar-instagram', async (req, res) => {
     return res.json({ instagram: null });
   } catch(e) {
     res.json({ instagram: null });
+  }
+});
+
+app.get('/analisar-layout', async (req, res) => {
+  let browser = null;
+  try {
+    const { site } = req.query;
+    if (!site) return res.json({ erro: 'Site não informado' });
+
+    browser = await puppeteer.launch({
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      headless: 'new'
+    });
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.goto(site, { waitUntil: 'networkidle2', timeout: 30000 });
+    const screenshot = await page.screenshot({ encoding: 'base64', fullPage: false });
+    await browser.close();
+    browser = null;
+
+    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            {
+              inline_data: {
+                mime_type: 'image/png',
+                data: screenshot
+              }
+            },
+            {
+              text: `Você é um especialista em design e marketing digital. Analise o layout desse site e retorne APENAS um JSON válido sem markdown:\n{"nota": número de 1 a 10,"transmite_confianca": true ou false,"pontos_positivos": ["ponto 1", "ponto 2"],"pontos_negativos": ["ponto 1", "ponto 2"],"resumo": "frase curta e direta sobre o site"}`
+            }
+          ]
+        }]
+      })
+    });
+
+    const geminiData = await geminiRes.json();
+    const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    const resultado = JSON.parse(text.replace(/```json|```/g, '').trim());
+    res.json(resultado);
+
+  } catch(e) {
+    if (browser) await browser.close();
+    res.json({ erro: e.message });
   }
 });
 
