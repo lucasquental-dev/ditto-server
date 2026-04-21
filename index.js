@@ -141,12 +141,22 @@ ${html}`
     });
 
     const geminiData = await geminiRes.json();
-    const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    
+    // Pega o texto de todos os parts que não sejam thought
+    const parts = geminiData.candidates?.[0]?.content?.parts || [];
+    const textPart = parts.find(p => p.text && !p.thought);
+    const text = textPart?.text || '';
+
+    if (!text) {
+      return res.json({ erro: 'Gemini não retornou texto', dados: geminiData });
+    }
+
     try {
-      const resultado = JSON.parse(text.replace(/```json|```/g, '').trim());
+      const limpo = text.replace(/```json|```/g, '').trim();
+      const resultado = JSON.parse(limpo);
       res.json(resultado);
     } catch(e) {
-      res.json({ erro: 'Erro ao parsear resposta', resposta_gemini: text, dados_completos: geminiData });
+      res.json({ erro: 'Erro ao parsear', texto: text });
     }
 
   } catch(e) {
