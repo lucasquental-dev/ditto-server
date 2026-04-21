@@ -93,12 +93,25 @@ app.get('/buscar-instagram', async (req, res) => {
   } catch(e) { res.json({ instagram: null }); }
 });
 
+app.get('/debug-gemini', async (req, res) => {
+  try {
+    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: 'Responda apenas: {"ok": true}' }] }]
+      })
+    });
+    const data = await geminiRes.json();
+    res.json(data);
+  } catch(e) { res.json({ erro: e.message }); }
+});
+
 app.get('/analisar-layout', async (req, res) => {
   try {
     const { site } = req.query;
     if (!site) return res.json({ erro: 'Site não informado' });
 
-    // Busca o HTML do site
     let html = '';
     try {
       const htmlRes = await fetch(site, {
@@ -106,13 +119,11 @@ app.get('/analisar-layout', async (req, res) => {
         timeout: 15000
       });
       html = await htmlRes.text();
-      // Limita o HTML para não exceder o limite do Gemini
       html = html.substring(0, 15000);
     } catch(e) {
       return res.json({ erro: 'Não foi possível acessar o site' });
     }
 
-    // Manda o HTML para o Gemini analisar
     const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -131,8 +142,12 @@ ${html}`
 
     const geminiData = await geminiRes.json();
     const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    const resultado = JSON.parse(text.replace(/```json|```/g, '').trim());
-    res.json(resultado);
+    try {
+      const resultado = JSON.parse(text.replace(/```json|```/g, '').trim());
+      res.json(resultado);
+    } catch(e) {
+      res.json({ erro: 'Erro ao parsear resposta', resposta_gemini: text, dados_completos: geminiData });
+    }
 
   } catch(e) {
     res.json({ erro: e.message });
