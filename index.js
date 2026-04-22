@@ -160,7 +160,7 @@ app.get('/analisar-layout', async (req, res) => {
 
     let status = 'RUNNING';
     let tentativas = 0;
-    while (status === 'RUNNING' && tentativas < 30) {
+    while (status === 'RUNNING' && tentativas < 40) {
       await new Promise(r => setTimeout(r, 3000));
       const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
       const statusData = await statusRes.json();
