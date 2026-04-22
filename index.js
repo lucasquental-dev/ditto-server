@@ -100,7 +100,7 @@ app.get('/analisar-instagram', async (req, res) => {
 
     const handle = username.replace('@', '');
 
-    // Busca perfil e posts via Apify
+    // Busca posts via instagram-scraper
     const runRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/runs?token=${APIFY_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -131,14 +131,41 @@ app.get('/analisar-instagram', async (req, res) => {
     const resultRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_KEY}`);
     const posts = await resultRes.json();
 
-    if (!posts || posts.length === 0) return res.json({ erro: 'Nenhum post encontrado' });
+    if (!posts || posts.length === 0) return res.json({ erro: 'Nenhum dado encontrado' });
 
-    // Pega dados do perfil do primeiro post
-    const perfil = posts[0].ownerFullName ? {
-      nome: posts[0].ownerFullName,
-      seguidores: posts[0].followersCount,
-      bio: posts[0].biography || ''
-    } : null;
+    // Extrai dados do perfil do primeiro item
+    const primeiro = posts[0];
+    const perfil = {
+      username: primeiro.ownerUsername || handle,
+      nome: primeiro.ownerFullName || primeiro.fullName || '',
+      bio: primeiro.biography || primeiro.metaData?.biography || '',
+      seguidores: primeiro.followersCount || primeiro.metaData?.followersCount || 0,
+      totalPosts: primeiro.metaData?.postsCount || posts.length,
+      isBusinessAccount: primeiro.metaData?.isBusinessAccount || false
+    };
+
+    // Calcula frequência com base nas datas dos posts
+    const postsComData = posts.filter(p => p.timestamp);
+    let frequenciaTexto = 'Não foi possível calcular';
+    let diasDesdeUltimoPost = null;
+
+    if (postsComData.length > 0) {
+      const datas = postsComData.map(p => new Date(p.timestamp)).sort((a, b) => b - a);
+      const ultimoPost = datas[0];
+      const hoje = new Date();
+      diasDesdeUltimoPost = Math.floor((hoje - ultimoPost) / (1000 * 60 * 60 * 24));
+
+      if (diasDesdeUltimoPost > 365) {
+        frequenciaTexto = `Perfil inativo — último post há mais de ${Math.floor(diasDesdeUltimoPost/365)} ano(s)`;
+      } else if (diasDesdeUltimoPost > 60) {
+        frequenciaTexto = `Postagem muito irregular — último post há ${diasDesdeUltimoPost} dias`;
+      } else if (postsComData.length >= 2) {
+        const maisAntigo = datas[datas.length - 1];
+        const periodoEmDias = Math.floor((datas[0] - maisAntigo) / (1000 * 60 * 60 * 24));
+        const postsPorSemana = periodoEmDias > 0 ? (postsComData.length / periodoEmDias * 7).toFixed(1) : 0;
+        frequenciaTexto = `Aproximadamente ${postsPorSemana} posts por semana`;
+      }
+    }
 
     // Prepara resumo dos posts para o Gemini
     const resumoPosts = posts.slice(0, 8).map(p => ({
@@ -155,31 +182,38 @@ app.get('/analisar-instagram', async (req, res) => {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Você é um especialista em marketing digital e redes sociais brasileiras. Analise o perfil do Instagram abaixo e retorne APENAS um JSON válido sem markdown.
+            text: `Você é um especialista em marketing digital e redes sociais brasileiras. Analise o perfil do Instagram abaixo com rigor e retorne APENAS um JSON válido sem markdown.
 
-Perfil: @${handle}
-Bio: ${perfil?.bio || 'Não disponível'}
-Seguidores: ${perfil?.seguidores || 'Não disponível'}
+Dados do perfil @${handle}:
+- Nome: ${perfil.nome}
+- Bio: ${perfil.bio || 'Não preenchida'}
+- Seguidores: ${perfil.seguidores}
+- Total de posts: ${perfil.totalPosts}
+- Conta business: ${perfil.isBusinessAccount ? 'Sim' : 'Não'}
+- Frequência calculada: ${frequenciaTexto}
+- Dias desde último post: ${diasDesdeUltimoPost !== null ? diasDesdeUltimoPost + ' dias' : 'desconhecido'}
 
 Últimos posts:
 ${JSON.stringify(resumoPosts, null, 2)}
 
-Avalie com rigor:
-- Frequência de postagem (posts regulares = bom, irregular ou parado = ruim)
-- Qualidade das legendas (texto relevante, chamada para ação, hashtags)
-- Engajamento (likes em relação ao número de seguidores)
-- Bio (clara, profissional, tem informações de contato?)
+IMPORTANTE: Use os dados reais acima. Se o último post foi há muito tempo, diga claramente que o perfil está inativo. Não invente dados positivos se os dados mostram problemas.
+
+Avalie:
+- Bio (clara, profissional, tem CTA e contato?)
+- Frequência real de postagem (use os dados acima)
+- Qualidade das legendas (relevância, CTAs, hashtags)
+- Engajamento (likes em relação aos seguidores)
 
 Retorne APENAS este JSON:
 {
   "nota": número de 1 a 10,
-  "seguidores": número ou null,
-  "frequencia": "descrição da frequência de posts",
-  "analise_bio": "análise da bio do perfil",
-  "analise_conteudo": "análise da qualidade das legendas e tipo de conteúdo",
+  "seguidores": número,
+  "frequencia": "descrição honesta e precisa da frequência baseada nos dados reais",
+  "analise_bio": "análise da bio",
+  "analise_conteudo": "análise da qualidade das legendas e conteúdo",
   "pontos_positivos": ["ponto 1", "ponto 2"],
   "pontos_negativos": ["ponto 1", "ponto 2"],
-  "resumo": "frase curta sobre o perfil"
+  "resumo": "frase curta e honesta sobre o perfil"
 }`
           }]
         }]
@@ -191,10 +225,12 @@ Retorne APENAS este JSON:
     const textPart = parts.find(p => p.text && !p.thought);
     const text = textPart?.text || '';
 
-    if (!text) return res.json({ erro: 'Gemini não retornou análise' });
+    if (!text) return res.json({ erro: 'Gemini não retornou análise', dados: geminiData });
 
     const resultado = JSON.parse(text.replace(/```json|```/g, '').trim());
-    resultado.seguidores = perfil?.seguidores || resultado.seguidores;
+    resultado.seguidores = perfil.seguidores;
+    resultado.frequencia_calculada = frequenciaTexto;
+    resultado.dias_desde_ultimo_post = diasDesdeUltimoPost;
     res.json(resultado);
 
   } catch(e) {
@@ -323,18 +359,18 @@ Analise a imagem focando em:
 - Identidade visual e consistência de marca
 - Profissionalismo para o segmento
 
-Use linguagem respeitosa e construtiva — como se falasse com o dono da empresa. Mas seja honesto e rigoroso na nota.
+Use linguagem respeitosa e construtiva. Mas seja honesto e rigoroso na nota.
 
 Retorne APENAS um JSON válido sem markdown:
 {
   "nota": número de 1 a 10,
   "transmite_confianca": true ou false,
   "resumo": "frase curta descrevendo a primeira impressão",
-  "analise_nota": "parágrafo explicando a nota — mencione problemas específicos e como impactam a percepção do cliente. Linguagem simples e respeitosa",
-  "comparacao_mercado": "como esse site se compara visualmente com outros do mesmo segmento",
+  "analise_nota": "parágrafo explicando a nota",
+  "comparacao_mercado": "como esse site se compara com outros do segmento",
   "principal_impacto": "o principal elemento que mais afasta um potencial cliente",
-  "pontos_positivos": ["ponto visual positivo 1", "ponto visual positivo 2"],
-  "pontos_negativos": ["ponto visual negativo 1", "ponto visual negativo 2"],
+  "pontos_positivos": ["ponto 1", "ponto 2"],
+  "pontos_negativos": ["ponto 1", "ponto 2"],
   "nota_seo": número de 1 a 10
 }`
             }
