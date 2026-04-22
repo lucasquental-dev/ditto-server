@@ -119,7 +119,6 @@ app.get('/screenshot', async (req, res) => {
     }
     if (status !== 'SUCCEEDED') return res.json({ url: null });
 
-    // Busca chave que começa com "screenshot_"
     const keysRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/keys?token=${APIFY_KEY}`);
     const keysData = await keysRes.json();
     const keys = keysData.data?.items || [];
@@ -149,7 +148,6 @@ app.get('/analisar-layout', async (req, res) => {
     const { site } = req.query;
     if (!site) return res.json({ erro: 'Site não informado' });
 
-    // Tira screenshot e analisa a imagem com Gemini
     const runRes = await fetch(`https://api.apify.com/v2/acts/apify~screenshot-url/runs?token=${APIFY_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -162,16 +160,15 @@ app.get('/analisar-layout', async (req, res) => {
 
     let status = 'RUNNING';
     let tentativas = 0;
-    while (status === 'RUNNING' && tentativas < 20) {
-      await new Promise(r => setTimeout(r, 2000));
+    while (status === 'RUNNING' && tentativas < 30) {
+      await new Promise(r => setTimeout(r, 3000));
       const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
       const statusData = await statusRes.json();
       status = statusData.data?.status || 'FAILED';
       tentativas++;
     }
-    if (status !== 'SUCCEEDED') return res.json({ erro: 'Screenshot falhou' });
+    if (status !== 'SUCCEEDED') return res.json({ erro: 'Screenshot falhou', status });
 
-    // Busca a imagem
     const keysRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/keys?token=${APIFY_KEY}`);
     const keysData = await keysRes.json();
     const keys = keysData.data?.items || [];
@@ -182,7 +179,6 @@ app.get('/analisar-layout', async (req, res) => {
     const screenshotBuffer = await screenshotRes.buffer();
     const screenshotBase64 = screenshotBuffer.toString('base64');
 
-    // Manda a imagem para o Gemini analisar
     const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -233,7 +229,6 @@ Retorne APENAS um JSON válido sem markdown:
 
     try {
       const resultado = JSON.parse(text.replace(/```json|```/g, '').trim());
-      // Retorna também a URL do screenshot
       resultado.screenshot_url = `https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${encodeURIComponent(imgKey.key)}?token=${APIFY_KEY}`;
       res.json(resultado);
     } catch(e) {
