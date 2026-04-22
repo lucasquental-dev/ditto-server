@@ -101,11 +101,7 @@ app.get('/screenshot', async (req, res) => {
     const runRes = await fetch(`https://api.apify.com/v2/acts/apify~screenshot-url/runs?token=${APIFY_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        urls: [{ url: site }],
-        waitUntil: 'load',
-        delay: 500
-      })
+      body: JSON.stringify({ urls: [{ url: site }], waitUntil: 'load', delay: 500 })
     });
     const runData = await runRes.json();
     const runId = runData.data?.id;
@@ -121,22 +117,16 @@ app.get('/screenshot', async (req, res) => {
       status = statusData.data?.status || 'FAILED';
       tentativas++;
     }
-
     if (status !== 'SUCCEEDED') return res.json({ url: null });
 
-    // Lista chaves do store
     const keysRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/keys?token=${APIFY_KEY}`);
     const keysData = await keysRes.json();
     const keys = keysData.data?.items || [];
     const imgKey = keys.find(k => k.contentType?.includes('image'));
     if (!imgKey) return res.json({ url: null });
 
-    const screenshotUrl = `https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${imgKey.key}?token=${APIFY_KEY}`;
-    res.json({ url: screenshotUrl });
-
-  } catch(e) {
-    res.json({ url: null });
-  }
+    res.json({ url: `https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${imgKey.key}?token=${APIFY_KEY}` });
+  } catch(e) { res.json({ url: null }); }
 });
 
 app.get('/debug-gemini', async (req, res) => {
@@ -176,16 +166,27 @@ app.get('/analisar-layout', async (req, res) => {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `Você é um especialista em design e marketing digital brasileiro. Analise o código HTML abaixo de um site empresarial e retorne APENAS um JSON válido sem markdown:
+            text: `Você é um consultor de marketing digital brasileiro avaliando o site de uma empresa como se fosse um cliente em potencial visitando pela primeira vez.
+
+Analise o HTML abaixo com foco TOTAL na experiência visual e percepção de credibilidade — não em aspectos técnicos como SEO ou performance. Imagine que você é o cliente ideal dessa empresa: você abriu o site, e agora responda:
+
+- O site passa profissionalismo e confiança para o segmento que atua?
+- As imagens, fotos e vídeos mencionados no HTML reforçam ou prejudicam a credibilidade?
+- O layout parece moderno e organizado ou parece desatualizado e amador?
+- Um cliente que entra nesse site ficaria com vontade de contratar essa empresa?
+- Como seria a primeira impressão de quem nunca ouviu falar dessa empresa?
+
+Retorne APENAS um JSON válido sem markdown:
 {
   "nota": número de 1 a 10,
   "transmite_confianca": true ou false,
-  "resumo": "frase curta e direta sobre o site em português",
-  "analise_nota": "parágrafo explicando detalhadamente o raciocínio por trás da nota dada, mencionando elementos específicos do site",
-  "comparacao_mercado": "como este site se compara com a média do mercado brasileiro no mesmo segmento",
-  "principal_impacto": "o fator que mais impacta negativamente a nota e por que isso afasta clientes",
-  "pontos_positivos": ["ponto 1", "ponto 2"],
-  "pontos_negativos": ["ponto 1", "ponto 2"]
+  "resumo": "frase curta descrevendo a primeira impressão de quem visita o site",
+  "analise_nota": "parágrafo explicando a nota com base na experiência visual — fale sobre o layout, as imagens, a organização, o profissionalismo aparente. Use linguagem simples, como se estivesse explicando para o dono da empresa",
+  "comparacao_mercado": "como esse site se compara visualmente com outros do mesmo segmento — a empresa parece mais ou menos profissional que a concorrência?",
+  "principal_impacto": "o principal elemento visual que mais afasta ou desanima um potencial cliente ao entrar no site",
+  "pontos_positivos": ["ponto visual positivo 1", "ponto visual positivo 2"],
+  "pontos_negativos": ["ponto visual negativo 1", "ponto visual negativo 2"],
+  "nota_seo": número de 1 a 10
 }
 
 HTML do site:
