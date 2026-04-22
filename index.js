@@ -185,42 +185,45 @@ app.get('/analisar-layout', async (req, res) => {
       body: JSON.stringify({
         contents: [{
           parts: [
+            { inline_data: { mime_type: 'image/png', data: screenshotBase64 } },
             {
-              inline_data: {
-                mime_type: 'image/png',
-                data: screenshotBase64
-              }
-            },
-            {
-              text: `Você é um avaliador rigoroso de presença digital para uma agência de marketing brasileira. Seu trabalho é identificar empresas que precisam de ajuda com seu site — então sua nota precisa refletir a REALIDADE, não ser gentil.
+              text: `Você é um avaliador RIGOROSO de presença digital para uma agência de marketing brasileira. Sua função é identificar empresas que precisam melhorar seu site — então a nota precisa refletir a REALIDADE com precisão.
 
-Regras de pontuação que você DEVE seguir:
-- Nota 1-3: Site muito ruim, desatualizado, sem identidade visual, imagens quebradas, layout amador ou sem conteúdo real
-- Nota 4-5: Site mediano, funcional mas genérico, visual datado, sem diferencial
-- Nota 6-7: Site razoável, layout ok, mas com problemas claros que afastam clientes
-- Nota 8-9: Site bom, moderno, profissional, transmite credibilidade
-- Nota 10: Site excelente, referência no segmento (raríssimo)
+REGRAS DE PONTUAÇÃO OBRIGATÓRIAS:
+- Nota 1-2: Site quebrado, sem conteúdo, inacessível ou completamente amador
+- Nota 3-4: Site muito ruim — desatualizado, identidade visual inexistente ou fragmentada, imagens genéricas, layout confuso, passa desconfiança
+- Nota 5: Site mediano — funcional mas sem nenhum diferencial, visual genérico, "mais um entre muitos"
+- Nota 6: Site razoável — tem alguns elementos bons mas com problemas claros que afastam clientes
+- Nota 7-8: Site bom — moderno, organizado, transmite credibilidade, poucas melhorias necessárias
+- Nota 9-10: Site excelente — referência no segmento, design profissional impecável (MUITO raro)
 
-IMPORTANTE: Seja criterioso. A maioria dos sites de pequenas e médias empresas brasileiras merece entre 3 e 6. Reserve notas altas apenas para sites realmente profissionais e modernos.
+REGRA CRÍTICA DE COERÊNCIA: A nota DEVE ser coerente com os problemas descritos. Se você identificar:
+- Imagens genéricas de banco → desconta pelo menos 1.5 pontos
+- Identidade visual fragmentada ou inconsistente → desconta pelo menos 1.5 pontos
+- Layout datado → desconta pelo menos 1 ponto
+- Banner/pop-up cobrindo conteúdo → desconta 0.5 ponto
+- "Na média do mercado" → nota máxima é 5
+- Múltiplos problemas sérios → nota máxima é 4
 
-Analise a imagem deste site focando em:
-- Primeira impressão visual (impacto em 3 segundos)
-- Qualidade e autenticidade das imagens (fotos de stock genéricas = penalização)
-- Modernidade e organização do layout
+NÃO seja generoso. A maioria dos sites de pequenas e médias empresas brasileiras merece entre 3 e 5. Notas 6 ou acima são para sites realmente bons.
+
+Analise a imagem focando em:
+- Primeira impressão em 3 segundos
+- Autenticidade das imagens (stock photos genéricas = penalização severa)
+- Modernidade e coesão do layout
 - Identidade visual e consistência de marca
-- Profissionalismo geral para o segmento que atua
-- Elementos que geram ou destroem confiança
+- Profissionalismo para o segmento
 
-Use linguagem respeitosa e construtiva — como se estivesse explicando para o dono da empresa o que precisa melhorar, sem ofender. Mas seja honesto na nota.
+Use linguagem respeitosa e construtiva — como se falasse com o dono da empresa. Mas seja honesto e rigoroso na nota.
 
 Retorne APENAS um JSON válido sem markdown:
 {
   "nota": número de 1 a 10,
   "transmite_confianca": true ou false,
-  "resumo": "frase curta descrevendo a primeira impressão de quem visita o site",
-  "analise_nota": "parágrafo explicando a nota com base na experiência visual — layout, imagens, cores, organização, profissionalismo. Linguagem simples e respeitosa, como se falasse com o dono",
+  "resumo": "frase curta descrevendo a primeira impressão",
+  "analise_nota": "parágrafo explicando a nota — mencione problemas específicos e como eles impactam a percepção do cliente. Linguagem simples e respeitosa",
   "comparacao_mercado": "como esse site se compara visualmente com outros do mesmo segmento",
-  "principal_impacto": "o principal elemento visual que mais afasta ou desanima um potencial cliente",
+  "principal_impacto": "o principal elemento que mais afasta um potencial cliente",
   "pontos_positivos": ["ponto visual positivo 1", "ponto visual positivo 2"],
   "pontos_negativos": ["ponto visual negativo 1", "ponto visual negativo 2"],
   "nota_seo": número de 1 a 10
