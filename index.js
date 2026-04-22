@@ -192,22 +192,33 @@ app.get('/analisar-layout', async (req, res) => {
               }
             },
             {
-              text: `Você é um consultor de marketing digital brasileiro avaliando o site de uma empresa como se fosse um cliente em potencial visitando pela primeira vez.
+              text: `Você é um avaliador rigoroso de presença digital para uma agência de marketing brasileira. Seu trabalho é identificar empresas que precisam de ajuda com seu site — então sua nota precisa refletir a REALIDADE, não ser gentil.
 
-Olhe para a imagem deste site e avalie com foco TOTAL na experiência visual e percepção de credibilidade:
+Regras de pontuação que você DEVE seguir:
+- Nota 1-3: Site muito ruim, desatualizado, sem identidade visual, imagens quebradas, layout amador ou sem conteúdo real
+- Nota 4-5: Site mediano, funcional mas genérico, visual datado, sem diferencial
+- Nota 6-7: Site razoável, layout ok, mas com problemas claros que afastam clientes
+- Nota 8-9: Site bom, moderno, profissional, transmite credibilidade
+- Nota 10: Site excelente, referência no segmento (raríssimo)
 
-- O site passa profissionalismo e confiança para o segmento que atua?
-- As imagens, fotos e vídeos reforçam ou prejudicam a credibilidade?
-- O layout parece moderno e organizado ou desatualizado e amador?
-- As cores, tipografia e espaçamentos passam profissionalismo?
-- Um cliente que entra nesse site ficaria com vontade de contratar essa empresa?
+IMPORTANTE: Seja criterioso. A maioria dos sites de pequenas e médias empresas brasileiras merece entre 3 e 6. Reserve notas altas apenas para sites realmente profissionais e modernos.
+
+Analise a imagem deste site focando em:
+- Primeira impressão visual (impacto em 3 segundos)
+- Qualidade e autenticidade das imagens (fotos de stock genéricas = penalização)
+- Modernidade e organização do layout
+- Identidade visual e consistência de marca
+- Profissionalismo geral para o segmento que atua
+- Elementos que geram ou destroem confiança
+
+Use linguagem respeitosa e construtiva — como se estivesse explicando para o dono da empresa o que precisa melhorar, sem ofender. Mas seja honesto na nota.
 
 Retorne APENAS um JSON válido sem markdown:
 {
   "nota": número de 1 a 10,
   "transmite_confianca": true ou false,
   "resumo": "frase curta descrevendo a primeira impressão de quem visita o site",
-  "analise_nota": "parágrafo explicando a nota com base na experiência visual — fale sobre layout, imagens, cores, organização e profissionalismo. Use linguagem simples como se estivesse explicando para o dono da empresa",
+  "analise_nota": "parágrafo explicando a nota com base na experiência visual — layout, imagens, cores, organização, profissionalismo. Linguagem simples e respeitosa, como se falasse com o dono",
   "comparacao_mercado": "como esse site se compara visualmente com outros do mesmo segmento",
   "principal_impacto": "o principal elemento visual que mais afasta ou desanima um potencial cliente",
   "pontos_positivos": ["ponto visual positivo 1", "ponto visual positivo 2"],
