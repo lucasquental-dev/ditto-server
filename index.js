@@ -110,7 +110,7 @@ app.get('/screenshot', async (req, res) => {
 
     let status = 'RUNNING';
     let tentativas = 0;
-    while (status === 'RUNNING' && tentativas < 15) {
+    while (status === 'RUNNING' && tentativas < 20) {
       await new Promise(r => setTimeout(r, 2000));
       const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
       const statusData = await statusRes.json();
@@ -119,13 +119,14 @@ app.get('/screenshot', async (req, res) => {
     }
     if (status !== 'SUCCEEDED') return res.json({ url: null });
 
+    // Busca chave que começa com "screenshot_"
     const keysRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/keys?token=${APIFY_KEY}`);
     const keysData = await keysRes.json();
     const keys = keysData.data?.items || [];
-    const imgKey = keys.find(k => k.contentType?.includes('image'));
+    const imgKey = keys.find(k => k.key.startsWith('screenshot_'));
     if (!imgKey) return res.json({ url: null });
 
-    res.json({ url: `https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${imgKey.key}?token=${APIFY_KEY}` });
+    res.json({ url: `https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${encodeURIComponent(imgKey.key)}?token=${APIFY_KEY}` });
   } catch(e) { res.json({ url: null }); }
 });
 
@@ -148,50 +149,77 @@ app.get('/analisar-layout', async (req, res) => {
     const { site } = req.query;
     if (!site) return res.json({ erro: 'Site não informado' });
 
-    let html = '';
-    try {
-      const htmlRes = await fetch(site, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-        timeout: 15000
-      });
-      html = await htmlRes.text();
-      html = html.substring(0, 15000);
-    } catch(e) {
-      return res.json({ erro: 'Não foi possível acessar o site' });
-    }
+    // Tira screenshot e analisa a imagem com Gemini
+    const runRes = await fetch(`https://api.apify.com/v2/acts/apify~screenshot-url/runs?token=${APIFY_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: [{ url: site }], waitUntil: 'load', delay: 1000 })
+    });
+    const runData = await runRes.json();
+    const runId = runData.data?.id;
+    const kvStoreId = runData.data?.defaultKeyValueStoreId;
+    if (!runId) return res.json({ erro: 'Erro ao iniciar screenshot' });
 
+    let status = 'RUNNING';
+    let tentativas = 0;
+    while (status === 'RUNNING' && tentativas < 20) {
+      await new Promise(r => setTimeout(r, 2000));
+      const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
+      const statusData = await statusRes.json();
+      status = statusData.data?.status || 'FAILED';
+      tentativas++;
+    }
+    if (status !== 'SUCCEEDED') return res.json({ erro: 'Screenshot falhou' });
+
+    // Busca a imagem
+    const keysRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/keys?token=${APIFY_KEY}`);
+    const keysData = await keysRes.json();
+    const keys = keysData.data?.items || [];
+    const imgKey = keys.find(k => k.key.startsWith('screenshot_'));
+    if (!imgKey) return res.json({ erro: 'Screenshot não encontrado' });
+
+    const screenshotRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${encodeURIComponent(imgKey.key)}?token=${APIFY_KEY}`);
+    const screenshotBuffer = await screenshotRes.buffer();
+    const screenshotBase64 = screenshotBuffer.toString('base64');
+
+    // Manda a imagem para o Gemini analisar
     const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{
-          parts: [{
-            text: `Você é um consultor de marketing digital brasileiro avaliando o site de uma empresa como se fosse um cliente em potencial visitando pela primeira vez.
+          parts: [
+            {
+              inline_data: {
+                mime_type: 'image/png',
+                data: screenshotBase64
+              }
+            },
+            {
+              text: `Você é um consultor de marketing digital brasileiro avaliando o site de uma empresa como se fosse um cliente em potencial visitando pela primeira vez.
 
-Analise o HTML abaixo com foco TOTAL na experiência visual e percepção de credibilidade — não em aspectos técnicos como SEO ou performance. Imagine que você é o cliente ideal dessa empresa: você abriu o site, e agora responda:
+Olhe para a imagem deste site e avalie com foco TOTAL na experiência visual e percepção de credibilidade:
 
 - O site passa profissionalismo e confiança para o segmento que atua?
-- As imagens, fotos e vídeos mencionados no HTML reforçam ou prejudicam a credibilidade?
-- O layout parece moderno e organizado ou parece desatualizado e amador?
+- As imagens, fotos e vídeos reforçam ou prejudicam a credibilidade?
+- O layout parece moderno e organizado ou desatualizado e amador?
+- As cores, tipografia e espaçamentos passam profissionalismo?
 - Um cliente que entra nesse site ficaria com vontade de contratar essa empresa?
-- Como seria a primeira impressão de quem nunca ouviu falar dessa empresa?
 
 Retorne APENAS um JSON válido sem markdown:
 {
   "nota": número de 1 a 10,
   "transmite_confianca": true ou false,
   "resumo": "frase curta descrevendo a primeira impressão de quem visita o site",
-  "analise_nota": "parágrafo explicando a nota com base na experiência visual — fale sobre o layout, as imagens, a organização, o profissionalismo aparente. Use linguagem simples, como se estivesse explicando para o dono da empresa",
-  "comparacao_mercado": "como esse site se compara visualmente com outros do mesmo segmento — a empresa parece mais ou menos profissional que a concorrência?",
-  "principal_impacto": "o principal elemento visual que mais afasta ou desanima um potencial cliente ao entrar no site",
+  "analise_nota": "parágrafo explicando a nota com base na experiência visual — fale sobre layout, imagens, cores, organização e profissionalismo. Use linguagem simples como se estivesse explicando para o dono da empresa",
+  "comparacao_mercado": "como esse site se compara visualmente com outros do mesmo segmento",
+  "principal_impacto": "o principal elemento visual que mais afasta ou desanima um potencial cliente",
   "pontos_positivos": ["ponto visual positivo 1", "ponto visual positivo 2"],
   "pontos_negativos": ["ponto visual negativo 1", "ponto visual negativo 2"],
   "nota_seo": número de 1 a 10
-}
-
-HTML do site:
-${html}`
-          }]
+}`
+            }
+          ]
         }]
       })
     });
@@ -205,6 +233,8 @@ ${html}`
 
     try {
       const resultado = JSON.parse(text.replace(/```json|```/g, '').trim());
+      // Retorna também a URL do screenshot
+      resultado.screenshot_url = `https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${encodeURIComponent(imgKey.key)}?token=${APIFY_KEY}`;
       res.json(resultado);
     } catch(e) {
       res.json({ erro: 'Erro ao parsear', texto: text });
