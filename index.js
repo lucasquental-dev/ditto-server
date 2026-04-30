@@ -100,7 +100,6 @@ app.get('/analisar-instagram', async (req, res) => {
 
     const handle = username.replace('@', '');
 
-    // Busca posts via instagram-scraper
     const runRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/runs?token=${APIFY_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -133,7 +132,6 @@ app.get('/analisar-instagram', async (req, res) => {
 
     if (!posts || posts.length === 0) return res.json({ erro: 'Nenhum dado encontrado' });
 
-    // Extrai dados do perfil do primeiro item
     const primeiro = posts[0];
     const perfil = {
       username: primeiro.ownerUsername || handle,
@@ -144,7 +142,6 @@ app.get('/analisar-instagram', async (req, res) => {
       isBusinessAccount: primeiro.metaData?.isBusinessAccount || false
     };
 
-    // Calcula frequência com base nas datas dos posts
     const postsComData = posts.filter(p => p.timestamp);
     let frequenciaTexto = 'Não foi possível calcular';
     let diasDesdeUltimoPost = null;
@@ -167,7 +164,6 @@ app.get('/analisar-instagram', async (req, res) => {
       }
     }
 
-    // Prepara resumo dos posts para o Gemini
     const resumoPosts = posts.slice(0, 8).map(p => ({
       legenda: (p.caption || '').substring(0, 200),
       likes: p.likesCount || 0,
@@ -175,11 +171,11 @@ app.get('/analisar-instagram', async (req, res) => {
       tipo: p.type || 'post'
     }));
 
-    // Manda para o Gemini analisar
     const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        generationConfig: { temperature: 0 },
         contents: [{
           parts: [{
             text: `Você é um especialista em marketing digital e redes sociais brasileiras. Analise o perfil do Instagram abaixo com rigor e retorne APENAS um JSON válido sem markdown.
@@ -196,13 +192,17 @@ Dados do perfil @${handle}:
 Últimos posts:
 ${JSON.stringify(resumoPosts, null, 2)}
 
-IMPORTANTE: Use os dados reais acima. Se o último post foi há muito tempo, diga claramente que o perfil está inativo. Não invente dados positivos se os dados mostram problemas.
+REGRAS DE PONTUAÇÃO OBRIGATÓRIAS:
+- Nota 1-2: Perfil abandonado (último post > 1 ano) ou sem conteúdo
+- Nota 3-4: Perfil muito fraco — irregular, bio vazia, conteúdo sem valor ou genérico
+- Nota 5: Perfil mediano — posts esporádicos, bio básica, sem estratégia clara
+- Nota 6: Perfil razoável — frequência ok mas conteúdo sem diferencial
+- Nota 7-8: Perfil bom — frequência regular, conteúdo relevante, bio completa
+- Nota 9-10: Perfil excelente — estratégia clara, alto engajamento, referência no segmento (MUITO raro)
 
-Avalie:
-- Bio (clara, profissional, tem CTA e contato?)
-- Frequência real de postagem (use os dados acima)
-- Qualidade das legendas (relevância, CTAs, hashtags)
-- Engajamento (likes em relação aos seguidores)
+REGRA CRÍTICA: Se o último post foi há mais de 60 dias, nota máxima é 4. Se foi há mais de 6 meses, nota máxima é 3. Se foi há mais de 1 ano, nota máxima é 2.
+
+IMPORTANTE: Use os dados reais acima. Não invente dados positivos se os dados mostram problemas.
 
 Retorne APENAS este JSON:
 {
@@ -328,6 +328,7 @@ app.get('/analisar-layout', async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        generationConfig: { temperature: 0 },
         contents: [{
           parts: [
             { inline_data: { mime_type: 'image/png', data: screenshotBase64 } },
