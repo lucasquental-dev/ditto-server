@@ -209,11 +209,24 @@ Retorne APENAS este JSON:
   "nota": número de 1 a 10,
   "seguidores": número,
   "frequencia": "descrição honesta e precisa da frequência baseada nos dados reais",
-  "analise_bio": "análise da bio",
-  "analise_conteudo": "análise da qualidade das legendas e conteúdo",
-  "pontos_positivos": ["ponto 1", "ponto 2"],
-  "pontos_negativos": ["ponto 1", "ponto 2"],
-  "resumo": "frase curta e honesta sobre o perfil"
+  "analise_bio": "análise da bio em 1 frase",
+  "analise_conteudo": "análise da qualidade das legendas e conteúdo em 1 frase",
+  "resumo": "frase curta e honesta sobre o perfil (máx 100 caracteres)",
+  "impacto_negocio": [
+    "consequência real e específica da fraqueza deste perfil para o negócio",
+    "segunda consequência específica",
+    "terceira consequência específica"
+  ],
+  "principais_falhas": [
+    "falha concreta identificada neste perfil (seja específico com os dados)",
+    "segunda falha concreta",
+    "terceira falha concreta"
+  ],
+  "oportunidades": [
+    "melhoria concreta que resolveria uma das falhas acima",
+    "segunda melhoria concreta",
+    "terceira melhoria concreta"
+  ]
 }`
           }]
         }]
@@ -365,14 +378,25 @@ Use linguagem respeitosa e construtiva. Mas seja honesto e rigoroso na nota.
 Retorne APENAS um JSON válido sem markdown:
 {
   "nota": número de 1 a 10,
+  "nota_seo": número de 1 a 10,
   "transmite_confianca": true ou false,
-  "resumo": "frase curta descrevendo a primeira impressão",
-  "analise_nota": "parágrafo explicando a nota",
-  "comparacao_mercado": "como esse site se compara com outros do segmento",
-  "principal_impacto": "o principal elemento que mais afasta um potencial cliente",
-  "pontos_positivos": ["ponto 1", "ponto 2"],
-  "pontos_negativos": ["ponto 1", "ponto 2"],
-  "nota_seo": número de 1 a 10
+  "resumo": "frase curta descrevendo a primeira impressão (máx 100 caracteres)",
+  "analise_nota": "1 parágrafo explicando a nota com base no que você viu na imagem",
+  "impacto_negocio": [
+    "consequência real e específica deste site para o negócio (ex: clientes que chegam pelo Google não encontram credibilidade para ligar)",
+    "segunda consequência específica",
+    "terceira consequência específica"
+  ],
+  "principais_falhas": [
+    "falha visual ou técnica específica que você identificou na imagem (seja concreto)",
+    "segunda falha específica",
+    "terceira falha específica"
+  ],
+  "oportunidades": [
+    "melhoria concreta que resolveria uma das falhas acima",
+    "segunda melhoria concreta",
+    "terceira melhoria concreta"
+  ]
 }`
             }
           ]
