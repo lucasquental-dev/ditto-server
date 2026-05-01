@@ -10,7 +10,7 @@ const MAPS_KEY = process.env.MAPS_KEY;
 const APIFY_KEY = process.env.APIFY_KEY;
 const GEMINI_KEY = process.env.GEMINI_KEY;
 
-// Cache em memória — evita rechamar Apify + Gemini para o mesmo site/instagram
+// Cache em memória (válido enquanto o servidor estiver ativo)
 const cacheLayout = {};
 const cacheInstagram = {};
 
@@ -104,7 +104,6 @@ app.get('/analisar-instagram', async (req, res) => {
 
     const handle = username.replace('@', '');
 
-    // Retorna do cache se já analisou esse perfil
     if (cacheInstagram[handle]) {
       console.log('Cache hit instagram:', handle);
       return res.json(cacheInstagram[handle]);
@@ -155,6 +154,7 @@ app.get('/analisar-instagram', async (req, res) => {
     const postsComData = posts.filter(p => p.timestamp);
     let frequenciaTexto = 'Não foi possível calcular';
     let diasDesdeUltimoPost = null;
+    let notaFrequenciaMaxima = 10; // teto calculado por código, não pelo Gemini
 
     if (postsComData.length > 0) {
       const datas = postsComData.map(p => new Date(p.timestamp)).sort((a, b) => b - a);
@@ -162,9 +162,15 @@ app.get('/analisar-instagram', async (req, res) => {
       const hoje = new Date();
       diasDesdeUltimoPost = Math.floor((hoje - ultimoPost) / (1000 * 60 * 60 * 24));
 
+      // Teto de nota baseado em inatividade — calculado objetivamente
       if (diasDesdeUltimoPost > 365) {
+        notaFrequenciaMaxima = 2;
         frequenciaTexto = `Perfil inativo — último post há mais de ${Math.floor(diasDesdeUltimoPost/365)} ano(s)`;
+      } else if (diasDesdeUltimoPost > 180) {
+        notaFrequenciaMaxima = 3;
+        frequenciaTexto = `Perfil quase abandonado — último post há ${diasDesdeUltimoPost} dias`;
       } else if (diasDesdeUltimoPost > 60) {
+        notaFrequenciaMaxima = 4;
         frequenciaTexto = `Postagem muito irregular — último post há ${diasDesdeUltimoPost} dias`;
       } else if (postsComData.length >= 2) {
         const maisAntigo = datas[datas.length - 1];
@@ -188,52 +194,57 @@ app.get('/analisar-instagram', async (req, res) => {
         generationConfig: { temperature: 0 },
         contents: [{
           parts: [{
-            text: `Você é um especialista em marketing digital e redes sociais brasileiras. Analise o perfil do Instagram abaixo com rigor e retorne APENAS um JSON válido sem markdown.
+            text: `Você é um avaliador RIGOROSO de presença digital em redes sociais para uma agência de marketing brasileira.
 
-Dados do perfil @${handle}:
+DADOS OBJETIVOS DO PERFIL @${handle}:
 - Nome: ${perfil.nome}
 - Bio: ${perfil.bio || 'Não preenchida'}
 - Seguidores: ${perfil.seguidores}
 - Total de posts: ${perfil.totalPosts}
 - Conta business: ${perfil.isBusinessAccount ? 'Sim' : 'Não'}
-- Frequência calculada: ${frequenciaTexto}
+- Frequência calculada pelo sistema: ${frequenciaTexto}
 - Dias desde último post: ${diasDesdeUltimoPost !== null ? diasDesdeUltimoPost + ' dias' : 'desconhecido'}
+- NOTA MÁXIMA PERMITIDA PELO SISTEMA: ${notaFrequenciaMaxima} (baseada em inatividade — você NÃO pode ultrapassar esse valor)
 
-Últimos posts:
+Últimos posts analisados:
 ${JSON.stringify(resumoPosts, null, 2)}
 
-REGRAS DE PONTUAÇÃO OBRIGATÓRIAS:
-- Nota 1-2: Perfil abandonado (último post > 1 ano) ou sem conteúdo
-- Nota 3-4: Perfil muito fraco — irregular, bio vazia, conteúdo sem valor ou genérico
-- Nota 5: Perfil mediano — posts esporádicos, bio básica, sem estratégia clara
-- Nota 6: Perfil razoável — frequência ok mas conteúdo sem diferencial
-- Nota 7-8: Perfil bom — frequência regular, conteúdo relevante, bio completa
-- Nota 9-10: Perfil excelente — estratégia clara, alto engajamento, referência no segmento (MUITO raro)
+ESCALA DE AVALIAÇÃO OBRIGATÓRIA (dentro do teto acima):
+- 1-2: Perfil abandonado ou sem conteúdo relevante
+- 3-4: Perfil muito fraco — irregular, bio vazia, conteúdo sem estratégia
+- 5: Perfil mediano — existe mas sem diferencial claro
+- 6: Perfil razoável — frequência ok, conteúdo básico
+- 7-8: Perfil bom — frequência regular, conteúdo relevante, bio completa
+- 9-10: Perfil excelente — referência no segmento (EXTREMAMENTE raro, use apenas se todos os indicadores forem excepcionais)
 
-REGRA CRÍTICA: Se o último post foi há mais de 60 dias, nota máxima é 4. Se foi há mais de 6 meses, nota máxima é 3. Se foi há mais de 1 ano, nota máxima é 2.
+REGRAS INVIOLÁVEIS:
+1. A nota final NÃO pode ser maior que ${notaFrequenciaMaxima} (teto calculado pelo sistema)
+2. Bio vazia ou sem CTA desconta 1 ponto
+3. Menos de 1.000 seguidores desconta 0.5 ponto
+4. Sem conta business desconta 0.5 ponto
+5. Legendas sem estratégia ou vazias descontam 1 ponto
+6. Seja específico: cite dados reais dos posts, não generalize
 
-IMPORTANTE: Use os dados reais acima. Não invente dados positivos se os dados mostram problemas.
-
-Retorne APENAS este JSON:
+Retorne APENAS este JSON válido sem markdown:
 {
-  "nota": número de 1 a 10,
+  "nota": número de 1 a ${notaFrequenciaMaxima},
   "seguidores": número,
-  "frequencia": "descrição honesta e precisa da frequência baseada nos dados reais",
-  "analise_bio": "análise da bio em 1 frase",
-  "analise_conteudo": "análise da qualidade das legendas e conteúdo em 1 frase",
-  "resumo": "frase curta e honesta sobre o perfil (máx 100 caracteres)",
+  "frequencia": "descrição precisa baseada nos dados reais acima",
+  "analise_bio": "análise objetiva da bio em 1 frase",
+  "analise_conteudo": "análise objetiva das legendas e conteúdo em 1 frase",
+  "resumo": "diagnóstico honesto do perfil em até 100 caracteres",
   "impacto_negocio": [
-    "consequência real e específica da fraqueza deste perfil para o negócio",
-    "segunda consequência específica",
-    "terceira consequência específica"
+    "impacto real e específico no negócio causado pelas fraquezas identificadas",
+    "segundo impacto específico",
+    "terceiro impacto específico"
   ],
   "principais_falhas": [
-    "falha concreta identificada neste perfil (seja específico com os dados)",
+    "falha concreta identificada nos dados acima — cite fatos",
     "segunda falha concreta",
     "terceira falha concreta"
   ],
   "oportunidades": [
-    "melhoria concreta que resolveria uma das falhas acima",
+    "melhoria concreta e acionável para resolver uma das falhas",
     "segunda melhoria concreta",
     "terceira melhoria concreta"
   ]
@@ -251,9 +262,13 @@ Retorne APENAS este JSON:
     if (!text) return res.json({ erro: 'Gemini não retornou análise', dados: geminiData });
 
     const resultado = JSON.parse(text.replace(/```json|```/g, '').trim());
+
+    // Garante que o Gemini não ultrapassou o teto calculado pelo sistema
+    resultado.nota = Math.min(resultado.nota, notaFrequenciaMaxima);
     resultado.seguidores = perfil.seguidores;
     resultado.frequencia_calculada = frequenciaTexto;
     resultado.dias_desde_ultimo_post = diasDesdeUltimoPost;
+
     cacheInstagram[handle] = resultado;
     res.json(resultado);
 
@@ -317,7 +332,6 @@ app.get('/analisar-layout', async (req, res) => {
     const { site } = req.query;
     if (!site) return res.json({ erro: 'Site não informado' });
 
-    // Retorna do cache se já analisou esse site
     if (cacheLayout[site]) {
       console.log('Cache hit layout:', site);
       return res.json(cacheLayout[site]);
@@ -363,54 +377,55 @@ app.get('/analisar-layout', async (req, res) => {
           parts: [
             { inline_data: { mime_type: 'image/png', data: screenshotBase64 } },
             {
-              text: `Você é um avaliador RIGOROSO de presença digital para uma agência de marketing brasileira. Sua função é identificar empresas que precisam melhorar seu site — então a nota precisa refletir a REALIDADE com precisão.
+              text: `Você é um avaliador RIGOROSO de presença digital para uma agência de marketing brasileira. Analise o screenshot do site com máxima objetividade.
 
-REGRAS DE PONTUAÇÃO OBRIGATÓRIAS:
-- Nota 1-2: Site quebrado, sem conteúdo, inacessível ou completamente amador
-- Nota 3-4: Site muito ruim — desatualizado, identidade visual inexistente ou fragmentada, imagens genéricas, layout confuso, passa desconfiança
-- Nota 5: Site mediano — funcional mas sem nenhum diferencial, visual genérico, "mais um entre muitos"
-- Nota 6: Site razoável — tem alguns elementos bons mas com problemas claros que afastam clientes
-- Nota 7-8: Site bom — moderno, organizado, transmite credibilidade, poucas melhorias necessárias
-- Nota 9-10: Site excelente — referência no segmento, design profissional impecável (MUITO raro)
+SISTEMA DE PONTUAÇÃO — aplique obrigatoriamente:
 
-REGRA CRÍTICA DE COERÊNCIA: A nota DEVE ser coerente com os problemas descritos. Se você identificar:
-- Imagens genéricas de banco → desconta pelo menos 1.5 pontos
-- Identidade visual fragmentada ou inconsistente → desconta pelo menos 1.5 pontos
-- Layout datado → desconta pelo menos 1 ponto
-- Banner/pop-up cobrindo conteúdo → desconta 0.5 ponto
-- "Na média do mercado" → nota máxima é 5
-- Múltiplos problemas sérios → nota máxima é 4
+Comece em 5 (mediano) e aplique os descontos e bônus abaixo:
 
-NÃO seja generoso. A maioria dos sites de pequenas e médias empresas brasileiras merece entre 3 e 5. Notas 6 ou acima são para sites realmente bons.
+DESCONTOS (some os que se aplicam):
+- Site quebrado, inacessível ou em construção: -4 pontos (nota final máxima: 2)
+- Imagens genéricas de banco de imagens (stock photos): -1.5 pontos
+- Identidade visual inconsistente ou inexistente: -1.5 pontos
+- Layout visivelmente desatualizado (pré-2018): -1.5 pontos
+- Sem hierarquia visual clara na home: -1 ponto
+- Pop-up ou banner cobrindo conteúdo principal: -0.5 ponto
+- Textos ilegíveis ou mal formatados: -0.5 ponto
+- Cores em conflito ou combinação amadora: -0.5 ponto
 
-Analise a imagem focando em:
-- Primeira impressão em 3 segundos
-- Autenticidade das imagens (stock photos genéricas = penalização severa)
-- Modernidade e coesão do layout
-- Identidade visual e consistência de marca
-- Profissionalismo para o segmento
+BÔNUS (some os que se aplicam):
+- Design moderno e coeso (pós-2022): +1 ponto
+- Imagens próprias e autênticas do negócio: +1 ponto
+- Hierarquia visual clara com CTA evidente: +0.5 ponto
+- Identidade visual forte e consistente: +0.5 ponto
+- Experiência premium e profissional: +1 ponto
 
-Use linguagem respeitosa e construtiva. Mas seja honesto e rigoroso na nota.
+TETOS OBRIGATÓRIOS:
+- Múltiplos problemas sérios (3+): nota máxima 4
+- Site mediano sem diferenciais: nota máxima 5
+- Notas 9-10: apenas para sites verdadeiramente excepcionais e referência de mercado
 
-Retorne APENAS um JSON válido sem markdown:
+ATENÇÃO: A nota calculada pelo sistema de pontos DEVE ser coerente com a análise textual. Se você descreve problemas sérios, a nota tem que refletir isso.
+
+Retorne APENAS este JSON válido sem markdown:
 {
-  "nota": número de 1 a 10,
-  "nota_seo": número de 1 a 10,
+  "nota": número de 1 a 10 (resultado do cálculo acima),
+  "nota_seo": número de 1 a 10 (estimativa de SEO pelo que é visível),
   "transmite_confianca": true ou false,
-  "resumo": "frase curta descrevendo a primeira impressão (máx 100 caracteres)",
-  "analise_nota": "1 parágrafo explicando a nota com base no que você viu na imagem",
+  "resumo": "primeira impressão objetiva em até 100 caracteres",
+  "analise_nota": "explique o cálculo: liste os descontos e bônus aplicados e o resultado",
   "impacto_negocio": [
-    "consequência real e específica deste site para o negócio (ex: clientes que chegam pelo Google não encontram credibilidade para ligar)",
-    "segunda consequência específica",
-    "terceira consequência específica"
+    "impacto real e específico no negócio causado pelo site atual",
+    "segundo impacto específico",
+    "terceiro impacto específico"
   ],
   "principais_falhas": [
-    "falha visual ou técnica específica que você identificou na imagem (seja concreto)",
+    "falha visual ou técnica específica que você viu na imagem — seja concreto",
     "segunda falha específica",
     "terceira falha específica"
   ],
   "oportunidades": [
-    "melhoria concreta que resolveria uma das falhas acima",
+    "melhoria concreta e acionável para resolver uma das falhas",
     "segunda melhoria concreta",
     "terceira melhoria concreta"
   ]
