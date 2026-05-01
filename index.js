@@ -10,6 +10,10 @@ const MAPS_KEY = process.env.MAPS_KEY;
 const APIFY_KEY = process.env.APIFY_KEY;
 const GEMINI_KEY = process.env.GEMINI_KEY;
 
+// Cache em memória — evita rechamar Apify + Gemini para o mesmo site/instagram
+const cacheLayout = {};
+const cacheInstagram = {};
+
 app.get('/maps/textsearch', async (req, res) => {
   try {
     const params = new URLSearchParams({...req.query, key: MAPS_KEY});
@@ -99,6 +103,12 @@ app.get('/analisar-instagram', async (req, res) => {
     if (!username) return res.json({ erro: 'Username não informado' });
 
     const handle = username.replace('@', '');
+
+    // Retorna do cache se já analisou esse perfil
+    if (cacheInstagram[handle]) {
+      console.log('Cache hit instagram:', handle);
+      return res.json(cacheInstagram[handle]);
+    }
 
     const runRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/runs?token=${APIFY_KEY}`, {
       method: 'POST',
@@ -244,6 +254,7 @@ Retorne APENAS este JSON:
     resultado.seguidores = perfil.seguidores;
     resultado.frequencia_calculada = frequenciaTexto;
     resultado.dias_desde_ultimo_post = diasDesdeUltimoPost;
+    cacheInstagram[handle] = resultado;
     res.json(resultado);
 
   } catch(e) {
@@ -305,6 +316,12 @@ app.get('/analisar-layout', async (req, res) => {
   try {
     const { site } = req.query;
     if (!site) return res.json({ erro: 'Site não informado' });
+
+    // Retorna do cache se já analisou esse site
+    if (cacheLayout[site]) {
+      console.log('Cache hit layout:', site);
+      return res.json(cacheLayout[site]);
+    }
 
     const runRes = await fetch(`https://api.apify.com/v2/acts/apify~screenshot-url/runs?token=${APIFY_KEY}`, {
       method: 'POST',
@@ -414,6 +431,7 @@ Retorne APENAS um JSON válido sem markdown:
     try {
       const resultado = JSON.parse(text.replace(/```json|```/g, '').trim());
       resultado.screenshot_url = `https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${encodeURIComponent(imgKey.key)}?token=${APIFY_KEY}`;
+      cacheLayout[site] = resultado;
       res.json(resultado);
     } catch(e) {
       res.json({ erro: 'Erro ao parsear', texto: text });
