@@ -247,7 +247,8 @@ Retorne APENAS este JSON válido sem markdown:
     "melhoria concreta e acionável para resolver uma das falhas",
     "segunda melhoria concreta",
     "terceira melhoria concreta"
-  ]
+  ],
+  "conclusao": "diagnóstico em até 60 palavras: o que define este site, qual o maior problema e o que isso custa para o negócio. Tom direto e respeitoso."
 }`
           }]
         }]
@@ -428,7 +429,8 @@ Retorne APENAS este JSON válido sem markdown:
     "melhoria concreta e acionável para resolver uma das falhas",
     "segunda melhoria concreta",
     "terceira melhoria concreta"
-  ]
+  ],
+  "conclusao": "diagnóstico em até 60 palavras: o que define este site, qual o maior problema e o que isso custa para o negócio. Tom direto e respeitoso."
 }`
             }
           ]
