@@ -58,9 +58,20 @@ app.get('/buscar-instagram', async (req, res) => {
         timeout: 10000
       });
       const html = await htmlRes.text();
-      const match = html.match(/instagram\.com\/([a-zA-Z0-9_.]+)/i);
-      if (match && !['p','reel','explore','accounts','sharer','share','stories'].includes(match[1])) {
-        return res.json({ instagram: '@' + match[1] });
+      // Múltiplos padrões para achar Instagram
+      const blacklist = ['p','reel','explore','accounts','sharer','share','stories','about','legal','help','press','api','oauth','challenges','privacy','safety','username'];
+      // Padrão 1: link href direto para instagram.com/handle
+      const matches = [...html.matchAll(/instagram\.com\/([a-zA-Z0-9_.]{2,30})(?:[/"\s?]|$)/gi)];
+      for (const m of matches) {
+        const handle = m[1].toLowerCase();
+        if (!blacklist.includes(handle) && !handle.startsWith('_') && handle.length > 2) {
+          return res.json({ instagram: '@' + m[1] });
+        }
+      }
+      // Padrão 2: atributo data- com handle do instagram
+      const m2 = html.match(/data-(?:instagram|ig)[^"']*["']@?([a-zA-Z0-9_.]{2,30})["']/i);
+      if (m2 && !blacklist.includes(m2[1].toLowerCase())) {
+        return res.json({ instagram: '@' + m2[1] });
       }
     } catch(e) {}
     const domain = site.replace(/https?:\/\//i, '').replace(/www\./i, '').split('/')[0].split('.')[0];
