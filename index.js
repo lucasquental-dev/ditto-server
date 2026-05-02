@@ -275,7 +275,7 @@ Retorne APENAS este JSON válido sem markdown:
 
     if (!text) return res.json({ erro: 'Gemini não retornou análise', dados: geminiData });
 
-    const resultado = JSON.parse(text.replace(/```json|```/g, '').trim());
+    const resultado = JSON.parse(text.split(String.fromCharCode(96,96,96)+'json').join('').split(String.fromCharCode(96,96,96)).join('').trim());
 
     // Garante que o Gemini não ultrapassou o teto calculado pelo sistema
     resultado.nota = Math.min(resultado.nota, notaFrequenciaMaxima);
@@ -437,7 +437,7 @@ Retorne APENAS este JSON válido sem markdown:
     "tópico curto, máx 8 palavras"
   ],
   "conclusao": "em até 60 palavras: o que define esse site hoje, qual o maior problema e o que isso está custando para o negócio em clientes e receita. Sem elogios. Direto."
-}
+}`
             }
           ]
         }]
@@ -452,7 +452,7 @@ Retorne APENAS este JSON válido sem markdown:
     if (!text) return res.json({ erro: 'Gemini não retornou texto', dados: geminiData });
 
     try {
-      const resultado = JSON.parse(text.replace(/```json|```/g, '').trim());
+      const resultado = JSON.parse(text.split(String.fromCharCode(96,96,96)+'json').join('').split(String.fromCharCode(96,96,96)).join('').trim());
       resultado.screenshot_url = `https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${encodeURIComponent(imgKey.key)}?token=${APIFY_KEY}`;
       cacheLayout[site] = resultado;
       res.json(resultado);
