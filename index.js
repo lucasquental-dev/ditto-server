@@ -217,6 +217,8 @@ ESCALA DE AVALIAÇÃO OBRIGATÓRIA (dentro do teto acima):
 - 7-8: Perfil bom — frequência regular, conteúdo relevante, bio completa
 - 9-10: Perfil excelente — referência no segmento (EXTREMAMENTE raro, use apenas se todos os indicadores forem excepcionais)
 
+REGRA INVIOLÁVEL PARA OS ARRAYS: Cada item de "impacto_negocio", "principais_falhas" e "oportunidades" deve ter NO MÁXIMO 8 palavras. Seja telegráfico. Exemplos corretos: "Perfil inativo há mais de 60 dias", "Bio vazia sem CTA", "Criar calendário editorial mensal". Exemplos ERRADOS: frases longas com explicação.
+
 REGRAS INVIOLÁVEIS:
 1. A nota final NÃO pode ser maior que ${notaFrequenciaMaxima} (teto calculado pelo sistema)
 2. Bio vazia ou sem CTA desconta 1 ponto
@@ -234,21 +236,21 @@ Retorne APENAS este JSON válido sem markdown:
   "analise_conteudo": "análise objetiva das legendas e conteúdo em 1 frase",
   "resumo": "diagnóstico honesto do perfil em até 100 caracteres",
   "impacto_negocio": [
-    "impacto real e específico no negócio causado pelas fraquezas identificadas",
-    "segundo impacto específico",
-    "terceiro impacto específico"
+    "tópico curto, máx 8 palavras",
+    "tópico curto, máx 8 palavras",
+    "tópico curto, máx 8 palavras"
   ],
   "principais_falhas": [
-    "falha concreta identificada nos dados acima — cite fatos",
-    "segunda falha concreta",
-    "terceira falha concreta"
+    "tópico curto, máx 8 palavras",
+    "tópico curto, máx 8 palavras",
+    "tópico curto, máx 8 palavras"
   ],
   "oportunidades": [
-    "melhoria concreta e acionável para resolver uma das falhas",
-    "segunda melhoria concreta",
-    "terceira melhoria concreta"
+    "tópico curto, máx 8 palavras",
+    "tópico curto, máx 8 palavras",
+    "tópico curto, máx 8 palavras"
   ],
-  "conclusao": "diagnóstico em até 60 palavras: o que define este site, qual o maior problema e o que isso custa para o negócio. Tom direto e respeitoso."
+  "conclusao": "diagnóstico em até 60 palavras sobre o perfil: estado atual, maior problema e impacto no negócio. Tom direto e respeitoso."
 }`
           }]
         }]
@@ -401,6 +403,8 @@ BÔNUS (some os que se aplicam):
 - Identidade visual forte e consistente: +0.5 ponto
 - Experiência premium e profissional: +1 ponto
 
+REGRA INVIOLÁVEL PARA OS ARRAYS: Cada item de "impacto_negocio", "principais_falhas" e "oportunidades" deve ter NO MÁXIMO 8 palavras. Seja telegráfico. Exemplos corretos: "Site sem CTA claro na home", "Imagens genéricas sem autenticidade", "Redesign focado em conversão". Exemplos ERRADOS: frases longas com explicação.
+
 TETOS OBRIGATÓRIOS:
 - Múltiplos problemas sérios (3+): nota máxima 4
 - Site mediano sem diferenciais: nota máxima 5
@@ -416,19 +420,19 @@ Retorne APENAS este JSON válido sem markdown:
   "resumo": "primeira impressão objetiva em até 100 caracteres",
   "analise_nota": "explique o cálculo: liste os descontos e bônus aplicados e o resultado",
   "impacto_negocio": [
-    "impacto real e específico no negócio causado pelo site atual",
-    "segundo impacto específico",
-    "terceiro impacto específico"
+    "tópico curto, máx 8 palavras",
+    "tópico curto, máx 8 palavras",
+    "tópico curto, máx 8 palavras"
   ],
   "principais_falhas": [
-    "falha visual ou técnica específica que você viu na imagem — seja concreto",
-    "segunda falha específica",
-    "terceira falha específica"
+    "tópico curto, máx 8 palavras",
+    "tópico curto, máx 8 palavras",
+    "tópico curto, máx 8 palavras"
   ],
   "oportunidades": [
-    "melhoria concreta e acionável para resolver uma das falhas",
-    "segunda melhoria concreta",
-    "terceira melhoria concreta"
+    "tópico curto, máx 8 palavras",
+    "tópico curto, máx 8 palavras",
+    "tópico curto, máx 8 palavras"
   ],
   "conclusao": "diagnóstico em até 60 palavras: o que define este site, qual o maior problema e o que isso custa para o negócio. Tom direto e respeitoso."
 }`
