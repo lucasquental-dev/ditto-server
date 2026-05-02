@@ -391,45 +391,36 @@ app.get('/analisar-layout', async (req, res) => {
           parts: [
             { inline_data: { mime_type: 'image/png', data: screenshotBase64 } },
             {
-              text: `Você é um avaliador RIGOROSO de presença digital para uma agência de marketing brasileira. Analise o screenshot do site com máxima objetividade.
+              text: `Você é um consultor sênior de marketing digital avaliando sites de pequenas e médias empresas brasileiras. Sua função é identificar empresas que precisam de ajuda — então seja honesto e rigoroso.
 
-SISTEMA DE PONTUAÇÃO — aplique obrigatoriamente:
+Analise o screenshot e descreva o que você vê com precisão. A nota deve refletir a realidade do site, não o potencial da empresa.
 
-Comece em 5 (mediano) e aplique os descontos e bônus abaixo:
+ESCALA DE REFERÊNCIA:
+- 1-2: Site quebrado, inacessível ou completamente amador
+- 3-4: Site ruim — visual datado, imagens genéricas, sem identidade, passa desconfiança
+- 5: Site mediano — funcional mas sem nenhum diferencial, "mais um entre muitos"
+- 6: Site razoável — tem elementos bons mas com problemas claros
+- 7-8: Site bom — moderno, organizado, transmite credibilidade
+- 9-10: Site excelente — referência no segmento (MUITO raro)
 
-DESCONTOS (some os que se aplicam):
-- Site quebrado, inacessível ou em construção: -4 pontos (nota final máxima: 2)
-- Imagens genéricas de banco de imagens (stock photos): -1.5 pontos
-- Identidade visual inconsistente ou inexistente: -1.5 pontos
-- Layout visivelmente desatualizado (pré-2018): -1.5 pontos
-- Sem hierarquia visual clara na home: -1 ponto
-- Pop-up ou banner cobrindo conteúdo principal: -0.5 ponto
-- Textos ilegíveis ou mal formatados: -0.5 ponto
-- Cores em conflito ou combinação amadora: -0.5 ponto
+CRITÉRIOS QUE MAIS PESAM:
+- Autenticidade das imagens: fotos genéricas de banco de imagens penalizam muito
+- Identidade visual: consistência de cores, tipografia e marca
+- Modernidade do layout: sites com visual pré-2018 são muito penalizados
+- Primeira impressão: o que um cliente sente nos primeiros 3 segundos
+- Capacidade de converter: o site faz o visitante querer entrar em contato?
 
-BÔNUS (some os que se aplicam):
-- Design moderno e coeso (pós-2022): +1 ponto
-- Imagens próprias e autênticas do negócio: +1 ponto
-- Hierarquia visual clara com CTA evidente: +0.5 ponto
-- Identidade visual forte e consistente: +0.5 ponto
-- Experiência premium e profissional: +1 ponto
+A NOTA DEVE SER COERENTE com os problemas descritos. Se o site tem imagens genéricas + layout datado + sem identidade clara, a nota máxima é 4.
 
-REGRA INVIOLÁVEL PARA OS ARRAYS: Cada item de "impacto_negocio", "principais_falhas" e "oportunidades" deve ter NO MÁXIMO 8 palavras. Seja telegráfico. Exemplos corretos: "Site sem CTA claro na home", "Imagens genéricas sem autenticidade", "Redesign focado em conversão". Exemplos ERRADOS: frases longas com explicação.
-
-TETOS OBRIGATÓRIOS:
-- Múltiplos problemas sérios (3+): nota máxima 4
-- Site mediano sem diferenciais: nota máxima 5
-- Notas 9-10: apenas para sites verdadeiramente excepcionais e referência de mercado
-
-ATENÇÃO: A nota calculada pelo sistema de pontos DEVE ser coerente com a análise textual. Se você descreve problemas sérios, a nota tem que refletir isso.
+REGRA DOS TÓPICOS: Cada item de "impacto_negocio", "principais_falhas" e "oportunidades" deve ter NO MÁXIMO 8 palavras. Telegráfico e direto.
 
 Retorne APENAS este JSON válido sem markdown:
 {
-  "nota": número de 1 a 10 (resultado do cálculo acima),
-  "nota_seo": número de 1 a 10 (estimativa de SEO pelo que é visível),
+  "nota": número de 1 a 10,
+  "nota_seo": número de 1 a 10,
   "transmite_confianca": true ou false,
-  "resumo": "primeira impressão objetiva em até 100 caracteres",
-  "analise_nota": "explique o cálculo: liste os descontos e bônus aplicados e o resultado",
+  "resumo": "primeira impressão honesta em até 100 caracteres",
+  "analise_nota": "descreva o que você viu e por que deu essa nota — seja específico com o que está na imagem",
   "impacto_negocio": [
     "tópico curto, máx 8 palavras",
     "tópico curto, máx 8 palavras",
@@ -445,8 +436,8 @@ Retorne APENAS este JSON válido sem markdown:
     "tópico curto, máx 8 palavras",
     "tópico curto, máx 8 palavras"
   ],
-  "conclusao": "diagnóstico em até 60 palavras: o que define este site, qual o maior problema e o que isso custa para o negócio. Tom direto e respeitoso."
-}`
+  "conclusao": "em até 60 palavras: o que define esse site hoje, qual o maior problema e o que isso está custando para o negócio em clientes e receita. Sem elogios. Direto."
+}
             }
           ]
         }]
