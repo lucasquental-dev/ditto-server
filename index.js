@@ -415,26 +415,29 @@ app.get('/analisar-layout', async (req, res) => {
           parts: [
             { inline_data: { mime_type: 'image/png', data: screenshotBase64 } },
             {
-              text: `Você é um consultor sênior de marketing digital avaliando sites de pequenas e médias empresas brasileiras. Sua função é identificar empresas que precisam de ajuda — então seja honesto e rigoroso.
+              text: `Você é um consultor sênior de marketing digital avaliando sites de pequenas e médias empresas brasileiras. Sua função é dar uma nota JUSTA e PRECISA — nem generosa nem punitiva demais.
 
-Analise o screenshot e descreva o que você vê com precisão. A nota deve refletir a realidade do site, não o potencial da empresa.
+Analise o screenshot com atenção e descreva o que você realmente vê. A nota deve refletir a qualidade real do site.
 
 ESCALA DE REFERÊNCIA:
 - 1-2: Site quebrado, inacessível ou completamente amador
-- 3-4: Site ruim — visual datado, imagens genéricas, sem identidade, passa desconfiança
-- 5: Site mediano — funcional mas sem nenhum diferencial, "mais um entre muitos"
-- 6: Site razoável — tem elementos bons mas com problemas claros
-- 7-8: Site bom — moderno, organizado, transmite credibilidade
+- 3-4: Site ruim — visual muito datado (pré-2015), imagens claramente genéricas, sem identidade nenhuma, passa desconfiança
+- 5: Site mediano — funcional mas genérico, sem diferencial claro
+- 6: Site razoável — tem identidade visual, organização ok, mas com problemas claros
+- 7-8: Site bom — moderno, organizado, transmite credibilidade, poucas melhorias necessárias
 - 9-10: Site excelente — referência no segmento (MUITO raro)
 
-CRITÉRIOS QUE MAIS PESAM:
-- Autenticidade das imagens: fotos genéricas de banco de imagens penalizam muito
-- Identidade visual: consistência de cores, tipografia e marca
-- Modernidade do layout: sites com visual pré-2018 são muito penalizados
-- Primeira impressão: o que um cliente sente nos primeiros 3 segundos
-- Capacidade de converter: o site faz o visitante querer entrar em contato?
+CRITÉRIOS IMPORTANTES:
+- Fotos reais da equipe ou do negócio: valorizam MUITO (+1 a 2 pontos)
+- Paleta de cores escura ou diferente NÃO é penalização — pode ser escolha de design intencional
+- Imagens de banco de imagens: NÃO penalize pelo simples fato de serem de banco. Penalize APENAS se forem claramente genéricas demais — pessoas sorridentes sem contexto, escritórios vazios sem identidade, imagens que claramente não têm relação com o negócio. Uma foto de banco bem escolhida e coerente com o tema é aceitável e profissional.
+- Identidade visual consistente (cores, tipografia, logo): valoriza
+- Site em Wix/WordPress não é penalização se bem executado
+- Primeira impressão: transmite profissionalismo para o segmento?
 
-A NOTA DEVE SER COERENTE com os problemas descritos. Se o site tem imagens genéricas + layout datado + sem identidade clara, a nota máxima é 4.
+ATENÇÃO: Não confunda "paleta escura" ou "estilo diferente" com "visual datado". Visual datado é layout de tabelas, fontes antigas, degradê dos anos 2000, botões quadrados sem estilo.
+
+A NOTA DEVE SER COERENTE com os problemas descritos. Não dê nota baixa se não encontrou problemas sérios.
 
 REGRA DOS TÓPICOS: Cada item de "impacto_negocio", "principais_falhas" e "oportunidades" deve ter NO MÁXIMO 8 palavras. Telegráfico e direto.
 
