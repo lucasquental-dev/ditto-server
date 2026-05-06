@@ -120,7 +120,22 @@ app.get('/buscar-instagram', async (req, res) => {
             const resultRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_KEY}`);
             const items = await resultRes.json();
             if (items && items.length > 0 && items[0].username) {
-              return res.json({ instagram: '@' + items[0].username });
+              const perfil = items[0];
+              const isPrivado = perfil.isPrivate || perfil.private;
+              const totalPosts = perfil.mediaCount || perfil.postsCount || 0;
+              const username = perfil.username.toLowerCase();
+              // Valida se o perfil faz sentido para uma empresa:
+              // Não pode ser privado, deve ter pelo menos 1 post,
+              // e o username deve ter alguma relação com o domínio do site
+              const dominioLimpo = domain.toLowerCase().replace(/[^a-z0-9]/g, '');
+              const usernameLimpo = username.replace(/[^a-z0-9]/g, '');
+              const temRelacao = usernameLimpo.includes(dominioLimpo) || 
+                                 dominioLimpo.includes(usernameLimpo) ||
+                                 usernameLimpo.substring(0, 4) === dominioLimpo.substring(0, 4);
+              if (!isPrivado && totalPosts > 0 && temRelacao) {
+                return res.json({ instagram: '@' + perfil.username });
+              }
+              console.log('Instagram pelo domínio rejeitado:', username, '| privado:', isPrivado, '| posts:', totalPosts, '| relação:', temRelacao);
             }
           }
         }
