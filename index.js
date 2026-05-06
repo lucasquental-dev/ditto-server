@@ -381,7 +381,7 @@ app.get('/analisar-layout', async (req, res) => {
     const runRes = await fetch(`https://api.apify.com/v2/acts/apify~screenshot-url/runs?token=${APIFY_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls: [{ url: site }], waitUntil: 'load', delay: 1000 })
+      body: JSON.stringify({ urls: [{ url: site }], waitUntil: 'networkidle', delay: 4000 })
     });
     const runData = await runRes.json();
     const runId = runData.data?.id;
@@ -419,27 +419,26 @@ app.get('/analisar-layout', async (req, res) => {
       const htmlRaw = await htmlRes.text();
       
       // Extrai partes relevantes do HTML
-      const metaGenerator = (htmlRaw.match(/<meta[^>]+name=["']generator["'][^>]*>/i) || [''])[0];
       const metaTitle = (htmlRaw.match(/<title[^>]*>(.*?)<\/title>/i) || ['',''])[1];
       const metaDesc = (htmlRaw.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)/i) || ['',''])[1];
       const h1s = [...htmlRaw.matchAll(/<h1[^>]*>(.*?)<\/h1>/gi)].map(m => m[1].replace(/<[^>]+>/g,'').trim()).slice(0,3);
       const h2s = [...htmlRaw.matchAll(/<h2[^>]*>(.*?)<\/h2>/gi)].map(m => m[1].replace(/<[^>]+>/g,'').trim()).slice(0,5);
-      const platform = htmlRaw.includes('oncorretor.com.br') ? 'oncorretor.com.br (sistema Porto Seguro)' :
-                       htmlRaw.includes('builderall') ? 'Builderall' :
+      const platform = htmlRaw.includes('oncorretor.com.br') ? 'oncorretor.com.br (sistema Porto Seguro — penalize -1 ponto e mencione nas falhas)' :
+                       htmlRaw.includes('builderall') ? 'Builderall (sistema genérico)' :
                        htmlRaw.includes('wix.com') || htmlRaw.includes('wixstatic') ? 'Wix' :
                        htmlRaw.includes('elementor') ? 'WordPress/Elementor' :
                        htmlRaw.includes('wordpress') ? 'WordPress' :
                        htmlRaw.includes('lovable') ? 'Lovable (IA)' :
-                       htmlRaw.includes('webflow') ? 'Webflow' : 'Não identificado';
-      
+                       htmlRaw.includes('webflow') ? 'Webflow' : 'Site próprio';
+
       htmlResumo = `
-DADOS TÉCNICOS DO SITE (extraídos do HTML):
-- Plataforma detectada: ${platform}
-- Título da página: ${metaTitle || 'Não definido'}
-- Meta description: ${metaDesc || 'Não definida'}
-- H1 (título principal): ${h1s.join(' | ') || 'Não encontrado'}
-- H2 (subtítulos): ${h2s.join(' | ') || 'Não encontrado'}
-- Gerador: ${metaGenerator || 'Não identificado'}`;
+DADOS TÉCNICOS (use apenas para avaliar SEO e plataforma — NÃO use para elevar a nota do layout):
+- Plataforma: ${platform}
+- Título da página: ${metaTitle || 'Não definido — problema de SEO'}
+- Meta description: ${metaDesc || 'Não definida — problema de SEO'}
+- Títulos H1: ${h1s.join(' | ') || 'Nenhum encontrado — problema de SEO'}
+- Títulos H2: ${h2s.join(' | ') || 'Nenhum encontrado'}
+ATENÇÃO: Avaliações de clientes, anos de experiência e outros dados do negócio que aparecerem na imagem NÃO devem elevar a nota — são méritos da empresa, não do site.`;
     } catch(e) {
       htmlResumo = 'DADOS TÉCNICOS: Não foi possível acessar o HTML do site.';
     }
@@ -454,7 +453,12 @@ DADOS TÉCNICOS DO SITE (extraídos do HTML):
 
 ` + htmlResumo + `
 
-AGORA ANALISE A IMAGEM DO SITE ACIMA considerando também os dados técnicos:
+REGRA CRÍTICA SOBRE OS DADOS TÉCNICOS:
+- Plataforma, título, meta description e estrutura de H1/H2: USE para avaliar SEO e qualidade técnica
+- Dados do NEGÓCIO como avaliações de clientes, anos de experiência, número de seguradoras: IGNORE para definir a nota — esses são méritos da empresa, não do site
+- A nota deve refletir a QUALIDADE VISUAL E DE DESIGN: identidade visual, hierarquia, modernidade, primeira impressão
+
+AGORA ANALISE A IMAGEM DO SITE considerando os critérios acima:
 
 Você é um consultor sênior de marketing digital avaliando sites de corretoras de seguros brasileiras. Sua função é dar uma nota JUSTA, PRECISA e COERENTE com o que você realmente vê.
 
