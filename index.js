@@ -409,13 +409,54 @@ app.get('/analisar-layout', async (req, res) => {
     const screenshotBuffer = await screenshotRes.buffer();
     const screenshotBase64 = screenshotBuffer.toString('base64');
 
+    // Busca e resume o HTML para análise técnica pelo Gemini
+    let htmlResumo = '';
+    try {
+      const htmlRes = await fetch(site, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        timeout: 10000
+      });
+      const htmlRaw = await htmlRes.text();
+      
+      // Extrai partes relevantes do HTML
+      const metaGenerator = (htmlRaw.match(/<meta[^>]+name=["']generator["'][^>]*>/i) || [''])[0];
+      const metaTitle = (htmlRaw.match(/<title[^>]*>(.*?)<\/title>/i) || ['',''])[1];
+      const metaDesc = (htmlRaw.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)/i) || ['',''])[1];
+      const h1s = [...htmlRaw.matchAll(/<h1[^>]*>(.*?)<\/h1>/gi)].map(m => m[1].replace(/<[^>]+>/g,'').trim()).slice(0,3);
+      const h2s = [...htmlRaw.matchAll(/<h2[^>]*>(.*?)<\/h2>/gi)].map(m => m[1].replace(/<[^>]+>/g,'').trim()).slice(0,5);
+      const platform = htmlRaw.includes('oncorretor.com.br') ? 'oncorretor.com.br (sistema Porto Seguro)' :
+                       htmlRaw.includes('builderall') ? 'Builderall' :
+                       htmlRaw.includes('wix.com') || htmlRaw.includes('wixstatic') ? 'Wix' :
+                       htmlRaw.includes('elementor') ? 'WordPress/Elementor' :
+                       htmlRaw.includes('wordpress') ? 'WordPress' :
+                       htmlRaw.includes('lovable') ? 'Lovable (IA)' :
+                       htmlRaw.includes('webflow') ? 'Webflow' : 'Não identificado';
+      
+      htmlResumo = `
+DADOS TÉCNICOS DO SITE (extraídos do HTML):
+- Plataforma detectada: ${platform}
+- Título da página: ${metaTitle || 'Não definido'}
+- Meta description: ${metaDesc || 'Não definida'}
+- H1 (título principal): ${h1s.join(' | ') || 'Não encontrado'}
+- H2 (subtítulos): ${h2s.join(' | ') || 'Não encontrado'}
+- Gerador: ${metaGenerator || 'Não identificado'}`;
+    } catch(e) {
+      htmlResumo = 'DADOS TÉCNICOS: Não foi possível acessar o HTML do site.';
+    }
+
     const geminiData = await geminiComRetry({
         generationConfig: { temperature: 0 },
         contents: [{
           parts: [
             { inline_data: { mime_type: 'image/png', data: screenshotBase64 } },
             {
-              text: `Você é um consultor sênior de marketing digital avaliando sites de corretoras de seguros brasileiras. Sua função é dar uma nota JUSTA, PRECISA e COERENTE com o que você realmente vê.
+              text: `Você é um consultor sênior de marketing digital avaliando sites de corretoras de seguros brasileiras. Você recebe DOIS tipos de informação: uma imagem (screenshot do site) e dados técnicos extraídos do HTML. Use os dois para uma análise completa.
+
+` + htmlResumo + `
+
+AGORA ANALISE A IMAGEM DO SITE ACIMA considerando também os dados técnicos:
+
+Você é um consultor sênior de marketing digital avaliando sites de corretoras de seguros brasileiras. Sua função é dar uma nota JUSTA, PRECISA e COERENTE com o que você realmente vê.
 
 ESCALA DE REFERÊNCIA — use esses exemplos reais como calibração:
 
