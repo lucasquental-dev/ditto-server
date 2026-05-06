@@ -14,6 +14,28 @@ const GEMINI_KEY = process.env.GEMINI_KEY;
 const cacheLayout = {};
 const cacheInstagram = {};
 
+// Retry automático para o Gemini — tenta até 3 vezes se retornar 503
+async function geminiComRetry(body, tentativas = 3) {
+  for (let i = 0; i < tentativas; i++) {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    const code = data && data.error && data.error.code;
+    if (code === 503) {
+      if (i < tentativas - 1) {
+        const espera = (i + 1) * 4000;
+        console.log('Gemini 503 — tentativa ' + (i+1) + '/' + tentativas + ', aguardando ' + (espera/1000) + 's');
+        await new Promise(r => setTimeout(r, espera));
+        continue;
+      }
+    }
+    return data;
+  }
+}
+
 app.get('/maps/textsearch', async (req, res) => {
   try {
     const params = new URLSearchParams({...req.query, key: MAPS_KEY});
@@ -198,10 +220,7 @@ app.get('/analisar-instagram', async (req, res) => {
       tipo: p.type || 'post'
     }));
 
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const geminiData = await geminiComRetry({
         generationConfig: { temperature: 0 },
         contents: [{
           parts: [{
@@ -265,10 +284,8 @@ Retorne APENAS este JSON válido sem markdown:
 }`
           }]
         }]
-      })
-    });
+      });
 
-    const geminiData = await geminiRes.json();
     const parts = geminiData.candidates?.[0]?.content?.parts || [];
     const textPart = parts.find(p => p.text && !p.thought);
     const text = textPart?.text || '';
@@ -329,15 +346,10 @@ app.get('/screenshot', async (req, res) => {
 
 app.get('/debug-gemini', async (req, res) => {
   try {
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const geminiData = await geminiComRetry({
         contents: [{ parts: [{ text: 'Responda apenas: {"ok": true}' }] }]
-      })
-    });
-    const data = await geminiRes.json();
-    res.json(data);
+      });
+    res.json(geminiData);
   } catch(e) { res.json({ erro: e.message }); }
 });
 
@@ -382,10 +394,7 @@ app.get('/analisar-layout', async (req, res) => {
     const screenshotBuffer = await screenshotRes.buffer();
     const screenshotBase64 = screenshotBuffer.toString('base64');
 
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const geminiData = await geminiComRetry({
         generationConfig: { temperature: 0 },
         contents: [{
           parts: [
@@ -441,10 +450,8 @@ Retorne APENAS este JSON válido sem markdown:
             }
           ]
         }]
-      })
-    });
+      });
 
-    const geminiData = await geminiRes.json();
     const parts = geminiData.candidates?.[0]?.content?.parts || [];
     const textPart = parts.find(p => p.text && !p.thought);
     const text = textPart?.text || '';
