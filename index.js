@@ -295,7 +295,7 @@ Retorne APENAS este JSON válido sem markdown:
     "tópico curto, máx 8 palavras",
     "tópico curto, máx 8 palavras"
   ],
-  "conclusao": "diagnóstico em até 60 palavras sobre o perfil: estado atual, maior problema e impacto no negócio. Tom direto e respeitoso."
+  "conclusao": "em até 60 palavras: explique de forma simples e respeitosa o que está limitando esse perfil de trazer mais clientes. Use palavras que qualquer pessoa entende, sem termos técnicos. O tom deve ser de quem identificou uma oportunidade real de melhoria, não de quem está criticando. Seja honesto mas construtivo."
 }`
           }]
         }]
@@ -415,31 +415,43 @@ app.get('/analisar-layout', async (req, res) => {
           parts: [
             { inline_data: { mime_type: 'image/png', data: screenshotBase64 } },
             {
-              text: `Você é um consultor sênior de marketing digital avaliando sites de pequenas e médias empresas brasileiras. Sua função é dar uma nota JUSTA e PRECISA — nem generosa nem punitiva demais.
+              text: `Você é um consultor sênior de marketing digital avaliando sites de corretoras de seguros brasileiras. Sua função é dar uma nota JUSTA, PRECISA e COERENTE com o que você realmente vê.
 
-Analise o screenshot com atenção e descreva o que você realmente vê. A nota deve refletir a qualidade real do site.
+ESCALA DE REFERÊNCIA — use esses exemplos reais como calibração:
 
-ESCALA DE REFERÊNCIA:
-- 1-2: Site quebrado, inacessível ou completamente amador
-- 3-4: Site ruim — visual muito datado (pré-2015), imagens claramente genéricas, sem identidade nenhuma, passa desconfiança
-- 5: Site mediano — funcional mas genérico, sem diferencial claro
-- 6: Site razoável — tem identidade visual, organização ok, mas com problemas claros
-- 7-8: Site bom — moderno, organizado, transmite credibilidade, poucas melhorias necessárias
-- 9-10: Site excelente — referência no segmento (MUITO raro)
+RUIM (1-4): Sites sem identidade visual própria, templates genéricos sem personalização, stock photos sem curadoria ou completamente fora de contexto, layout confuso ou datado, primeira impressão negativa.
+Exemplos do que é RUIM: template de plataforma genérica (oncorretor, builderall básico) sem nenhuma personalização; imagem hero de mãos sobre carrinho de brinquedo; formulário de contato como primeira coisa na home; layout que parece dos anos 2010 sem atualização.
 
-CRITÉRIOS IMPORTANTES:
-- Fotos reais da equipe ou do negócio: valorizam MUITO (+1 a 2 pontos)
-- Paleta de cores escura ou diferente NÃO é penalização — pode ser escolha de design intencional
-- Imagens de banco de imagens: NÃO penalize pelo simples fato de serem de banco. Penalize APENAS se forem claramente genéricas demais — pessoas sorridentes sem contexto, escritórios vazios sem identidade, imagens que claramente não têm relação com o negócio. Uma foto de banco bem escolhida e coerente com o tema é aceitável e profissional.
-- Identidade visual consistente (cores, tipografia, logo): valoriza
-- Site em Wix/WordPress não é penalização se bem executado
-- Primeira impressão: transmite profissionalismo para o segmento?
+MÉDIO (5-6): Tem identidade visual básica e é funcional, mas falta diferencial claro. Pode ter problemas de hierarquia, execução incompleta, ou visual ok mas sem personalidade marcante. Isso inclui sites com design sofisticado mas com problemas sérios de usabilidade (texto sem hierarquia, sem imagens de apoio, leitura cansativa).
+Exemplos do que é MÉDIO: site limpo com identidade básica mas genérico; layout moderno mas sem fotos próprias ou diferenciais; design diferenciado mas com legibilidade comprometida.
 
-ATENÇÃO: Não confunda "paleta escura" ou "estilo diferente" com "visual datado". Visual datado é layout de tabelas, fontes antigas, degradê dos anos 2000, botões quadrados sem estilo.
+BOM (7-8): Identidade visual forte e coesa, hierarquia clara, CTAs evidentes, transmite profissionalismo imediatamente. Pode ser simples mas bem executado.
+Exemplos do que é BOM: hero impactante com montagem criativa e identidade própria; paleta de cores consistente e intencional; headline memorável; imagens bem curadas mesmo que de banco.
 
-A NOTA DEVE SER COERENTE com os problemas descritos. Não dê nota baixa se não encontrou problemas sérios.
+EXCELENTE (9-10): Referência absoluta no segmento. MUITO raro — reserve para sites verdadeiramente excepcionais.
 
-REGRA DOS TÓPICOS: Cada item de "impacto_negocio", "principais_falhas" e "oportunidades" deve ter NO MÁXIMO 8 palavras. Telegráfico e direto.
+CRITÉRIOS QUE MAIS PESAM:
+1. Identidade visual — tem marca própria ou parece template genérico?
+2. Hierarquia e usabilidade — é fácil de ler e navegar? Os títulos têm pesos diferentes?
+3. Imagens — bem curadas e coerentes com o negócio? (não precisa ser foto própria, mas precisa fazer sentido)
+4. Primeira impressão — nos primeiros 3 segundos transmite profissionalismo?
+5. CTA — fica claro o que o visitante deve fazer?
+
+ATENÇÃO:
+- Paleta escura NÃO é penalização — pode ser escolha intencional e sofisticada
+- Foto de banco bem curada e coerente = aceitável. Foto de banco genérica demais (família sorridente sem contexto, aperto de mão em escritório vazio) = penaliza
+- Foto real da equipe ou do negócio = valoriza muito
+- Wix/WordPress bem executado não penaliza
+- Muito texto sem hierarquia, sem imagens de apoio e sem variação de peso nos títulos = penaliza (dificulta a leitura e afasta o visitante)
+
+SISTEMAS GENÉRICOS DE CORRETORAS — PENALIZAÇÃO OBRIGATÓRIA:
+Se você identificar que o site foi construído em uma plataforma genérica disponibilizada por seguradoras (como o oncorretor.com.br da Porto Seguro, ou sistemas similares onde todos os corretores têm o mesmo template), aplique -1 ponto e mencione explicitamente na "analise_nota" qual é o sistema identificado. Esses sites são impossíveis de personalizar e não representam uma presença digital própria da empresa. Mencione também em "principais_falhas" que o site está preso em um sistema genérico de terceiros.
+
+A NOTA DEVE SER COERENTE com os problemas descritos.
+
+REGRA DOS TÓPICOS: Cada item de "impacto_negocio", "principais_falhas" e "oportunidades" deve ter NO MÁXIMO 8 palavras. Use linguagem simples que qualquer pessoa entende — sem jargões de marketing ou termos técnicos. O tom deve ser respeitoso e construtivo, como um consultor que quer ajudar, não criticar.
+Exemplos de tom ERRADO: "Ausência de estratégia de SEO on-page", "Identidade visual fragmentada e inconsistente"
+Exemplos de tom CERTO: "Site difícil de encontrar no Google", "Visual do site não transmite a qualidade do serviço"
 
 Retorne APENAS este JSON válido sem markdown:
 {
@@ -463,7 +475,7 @@ Retorne APENAS este JSON válido sem markdown:
     "tópico curto, máx 8 palavras",
     "tópico curto, máx 8 palavras"
   ],
-  "conclusao": "em até 60 palavras: o que define esse site hoje, qual o maior problema e o que isso está custando para o negócio em clientes e receita. Sem elogios. Direto."
+  "conclusao": "em até 60 palavras: explique de forma simples e respeitosa o que está limitando esse site de trazer mais clientes. Use palavras que qualquer pessoa entende, sem termos técnicos. O tom deve ser de quem identificou uma oportunidade real de melhoria, não de quem está criticando. Seja honesto mas construtivo."
 }`
             }
           ]
