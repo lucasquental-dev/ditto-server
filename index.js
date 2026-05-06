@@ -381,7 +381,7 @@ app.get('/analisar-layout', async (req, res) => {
     const runRes = await fetch(`https://api.apify.com/v2/acts/apify~screenshot-url/runs?token=${APIFY_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls: [{ url: site }], waitUntil: 'networkidle', delay: 4000 })
+      body: JSON.stringify({ urls: [{ url: site }], waitUntil: 'load', delay: 4000 })
     });
     const runData = await runRes.json();
     const runId = runData.data?.id;
