@@ -15,7 +15,7 @@ const cacheLayout = {};
 const cacheInstagram = {};
 
 // Retry automático para o Gemini — tenta até 3 vezes se retornar 503
-async function geminiComRetry(body, tentativas = 3) {
+async function geminiComRetry(body, tentativas = 4) {
   for (let i = 0; i < tentativas; i++) {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: 'POST',
@@ -24,10 +24,12 @@ async function geminiComRetry(body, tentativas = 3) {
     });
     const data = await res.json();
     const code = data && data.error && data.error.code;
-    if (code === 503) {
+    const status = data && data.error && data.error.status;
+    // Retry em caso de sobrecarga (503) ou indisponibilidade temporária
+    if (code === 503 || status === 'UNAVAILABLE' || code === 429) {
       if (i < tentativas - 1) {
-        const espera = (i + 1) * 4000;
-        console.log('Gemini 503 — tentativa ' + (i+1) + '/' + tentativas + ', aguardando ' + (espera/1000) + 's');
+        const espera = (i + 1) * 5000; // 5s, 10s, 15s
+        console.log('Gemini ' + (code||status) + ' — tentativa ' + (i+1) + '/' + tentativas + ', aguardando ' + (espera/1000) + 's');
         await new Promise(r => setTimeout(r, espera));
         continue;
       }
