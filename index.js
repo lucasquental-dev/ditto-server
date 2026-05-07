@@ -452,6 +452,9 @@ ATENÇÃO:
 - Foto de banco bem curada = aceitável. Foto genérica demais = penaliza
 - Foto real da equipe = valoriza muito
 - Muito texto sem hierarquia = penaliza
+- NUNCA reporte números ou percentuais que aparecem zerados, como "0%", "0 clientes", "R$ 0" — esses são elementos dinâmicos que ainda não carregaram no HTML. Simplesmente ignore esses valores e não os mencione na análise
+- NUNCA diga que um vídeo está quebrado ou não funciona — você está lendo o HTML estático e não consegue executar JavaScript. Se houver um elemento de vídeo, apenas ignore
+- Se tiver dúvida se um dado é real ou dinâmico, IGNORE — cite apenas o que é claramente visível e estático
 
 SISTEMAS GENÉRICOS — PENALIZAÇÃO OBRIGATÓRIA:
 Se identificar oncorretor.com.br ou sistema similar: -1 ponto e mencione nas falhas.
