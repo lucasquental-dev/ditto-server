@@ -373,43 +373,13 @@ app.get('/analisar-layout', async (req, res) => {
     const { site } = req.query;
     if (!site) return res.json({ erro: 'Site não informado' });
 
+    // Retorna do cache se já analisou esse site
     if (cacheLayout[site]) {
       console.log('Cache hit layout:', site);
       return res.json(cacheLayout[site]);
     }
 
-    const runRes = await fetch(`https://api.apify.com/v2/acts/apify~screenshot-url/runs?token=${APIFY_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ urls: [{ url: site }], waitUntil: 'load', delay: 4000 })
-    });
-    const runData = await runRes.json();
-    const runId = runData.data?.id;
-    const kvStoreId = runData.data?.defaultKeyValueStoreId;
-    if (!runId) return res.json({ erro: 'Erro ao iniciar screenshot' });
-
-    let status = 'RUNNING';
-    let tentativas = 0;
-    while (status === 'RUNNING' && tentativas < 40) {
-      await new Promise(r => setTimeout(r, 3000));
-      const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
-      const statusData = await statusRes.json();
-      status = statusData.data?.status || 'FAILED';
-      tentativas++;
-    }
-    if (status !== 'SUCCEEDED') return res.json({ erro: 'Screenshot falhou', status });
-
-    const keysRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/keys?token=${APIFY_KEY}`);
-    const keysData = await keysRes.json();
-    const keys = keysData.data?.items || [];
-    const imgKey = keys.find(k => k.key.startsWith('screenshot_'));
-    if (!imgKey) return res.json({ erro: 'Screenshot não encontrado' });
-
-    const screenshotRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${encodeURIComponent(imgKey.key)}?token=${APIFY_KEY}`);
-    const screenshotBuffer = await screenshotRes.buffer();
-    const screenshotBase64 = screenshotBuffer.toString('base64');
-
-    // Busca e resume o HTML para análise técnica pelo Gemini
+    // Detecta plataforma pelo HTML para passar ao Gemini
     let htmlResumo = '';
     try {
       const htmlRes = await fetch(site, {
@@ -417,8 +387,7 @@ app.get('/analisar-layout', async (req, res) => {
         timeout: 10000
       });
       const htmlRaw = await htmlRes.text();
-      
-      // Extrai partes relevantes do HTML
+
       const metaTitle = (htmlRaw.match(/<title[^>]*>(.*?)<\/title>/i) || ['',''])[1];
       const metaDesc = (htmlRaw.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)/i) || ['',''])[1];
       const h1s = [...htmlRaw.matchAll(/<h1[^>]*>(.*?)<\/h1>/gi)].map(m => m[1].replace(/<[^>]+>/g,'').trim()).slice(0,3);
@@ -438,29 +407,27 @@ DADOS TÉCNICOS (use apenas para avaliar SEO e plataforma — NÃO use para elev
 - Meta description: ${metaDesc || 'Não definida — problema de SEO'}
 - Títulos H1: ${h1s.join(' | ') || 'Nenhum encontrado — problema de SEO'}
 - Títulos H2: ${h2s.join(' | ') || 'Nenhum encontrado'}
-ATENÇÃO: Avaliações de clientes, anos de experiência e outros dados do negócio que aparecerem na imagem NÃO devem elevar a nota — são méritos da empresa, não do site.`;
+ATENÇÃO: Avaliações de clientes, anos de experiência e outros dados do negócio NÃO devem elevar a nota — são méritos da empresa, não do site.`;
     } catch(e) {
       htmlResumo = 'DADOS TÉCNICOS: Não foi possível acessar o HTML do site.';
     }
 
+    // Usa URL Context Tool — Gemini acessa o site diretamente
     const geminiData = await geminiComRetry({
-        generationConfig: { temperature: 0 },
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: 'image/png', data: screenshotBase64 } },
-            {
-              text: `Você é um consultor sênior de marketing digital avaliando sites de corretoras de seguros brasileiras. Você recebe DOIS tipos de informação: uma imagem (screenshot do site) e dados técnicos extraídos do HTML. Use os dois para uma análise completa.
+      generationConfig: { temperature: 0 },
+      tools: [{ url_context: {} }],
+      contents: [{
+        parts: [{
+          text: `Acesse e analise o site: ${site}
 
-` + htmlResumo + `
+${htmlResumo}
 
 REGRA CRÍTICA SOBRE OS DADOS TÉCNICOS:
 - Plataforma, título, meta description e estrutura de H1/H2: USE para avaliar SEO e qualidade técnica
 - Dados do NEGÓCIO como avaliações de clientes, anos de experiência, número de seguradoras: IGNORE para definir a nota — esses são méritos da empresa, não do site
 - A nota deve refletir a QUALIDADE VISUAL E DE DESIGN: identidade visual, hierarquia, modernidade, primeira impressão
 
-AGORA ANALISE A IMAGEM DO SITE considerando os critérios acima:
-
-Você é um consultor sênior de marketing digital avaliando sites de corretoras de seguros brasileiras. Sua função é dar uma nota JUSTA, PRECISA e COERENTE com o que você realmente vê.
+Você é um consultor sênior de marketing digital avaliando sites de corretoras de seguros brasileiras. Sua função é dar uma nota JUSTA e PRECISA — nem generosa nem punitiva demais.
 
 ESCALA DE REFERÊNCIA — use esses exemplos reais como calibração:
 
@@ -468,35 +435,28 @@ RUIM (1-4): Sites sem identidade visual própria, templates genéricos sem perso
 Exemplos do que é RUIM: template de plataforma genérica (oncorretor, builderall básico) sem nenhuma personalização; imagem hero de mãos sobre carrinho de brinquedo; formulário de contato como primeira coisa na home; layout que parece dos anos 2010 sem atualização.
 
 MÉDIO (5-6): Tem identidade visual básica e é funcional, mas falta diferencial claro. Pode ter problemas de hierarquia, execução incompleta, ou visual ok mas sem personalidade marcante. Isso inclui sites com design sofisticado mas com problemas sérios de usabilidade (texto sem hierarquia, sem imagens de apoio, leitura cansativa).
-Exemplos do que é MÉDIO: site limpo com identidade básica mas genérico; layout moderno mas sem fotos próprias ou diferenciais; design diferenciado mas com legibilidade comprometida.
 
 BOM (7-8): Identidade visual forte e coesa, hierarquia clara, CTAs evidentes, transmite profissionalismo imediatamente. Pode ser simples mas bem executado.
-Exemplos do que é BOM: hero impactante com montagem criativa e identidade própria; paleta de cores consistente e intencional; headline memorável; imagens bem curadas mesmo que de banco.
 
-EXCELENTE (9-10): Referência absoluta no segmento. MUITO raro — reserve para sites verdadeiramente excepcionais.
+EXCELENTE (9-10): Referência absoluta no segmento. MUITO raro.
 
 CRITÉRIOS QUE MAIS PESAM:
 1. Identidade visual — tem marca própria ou parece template genérico?
 2. Hierarquia e usabilidade — é fácil de ler e navegar? Os títulos têm pesos diferentes?
-3. Imagens — bem curadas e coerentes com o negócio? (não precisa ser foto própria, mas precisa fazer sentido)
+3. Imagens — bem curadas e coerentes com o negócio?
 4. Primeira impressão — nos primeiros 3 segundos transmite profissionalismo?
 5. CTA — fica claro o que o visitante deve fazer?
 
 ATENÇÃO:
-- Paleta escura NÃO é penalização — pode ser escolha intencional e sofisticada
-- Foto de banco bem curada e coerente = aceitável. Foto de banco genérica demais (família sorridente sem contexto, aperto de mão em escritório vazio) = penaliza
-- Foto real da equipe ou do negócio = valoriza muito
-- Wix/WordPress bem executado não penaliza
-- Muito texto sem hierarquia, sem imagens de apoio e sem variação de peso nos títulos = penaliza (dificulta a leitura e afasta o visitante)
+- Paleta escura NÃO é penalização
+- Foto de banco bem curada = aceitável. Foto genérica demais = penaliza
+- Foto real da equipe = valoriza muito
+- Muito texto sem hierarquia = penaliza
 
-SISTEMAS GENÉRICOS DE CORRETORAS — PENALIZAÇÃO OBRIGATÓRIA:
-Se você identificar que o site foi construído em uma plataforma genérica disponibilizada por seguradoras (como o oncorretor.com.br da Porto Seguro, ou sistemas similares onde todos os corretores têm o mesmo template), aplique -1 ponto e mencione explicitamente na "analise_nota" qual é o sistema identificado. Esses sites são impossíveis de personalizar e não representam uma presença digital própria da empresa. Mencione também em "principais_falhas" que o site está preso em um sistema genérico de terceiros.
+SISTEMAS GENÉRICOS — PENALIZAÇÃO OBRIGATÓRIA:
+Se identificar oncorretor.com.br ou sistema similar: -1 ponto e mencione nas falhas.
 
-A NOTA DEVE SER COERENTE com os problemas descritos.
-
-REGRA DOS TÓPICOS: Cada item de "impacto_negocio", "principais_falhas" e "oportunidades" deve ter NO MÁXIMO 8 palavras. Use linguagem simples que qualquer pessoa entende — sem jargões de marketing ou termos técnicos. O tom deve ser respeitoso e construtivo, como um consultor que quer ajudar, não criticar.
-Exemplos de tom ERRADO: "Ausência de estratégia de SEO on-page", "Identidade visual fragmentada e inconsistente"
-Exemplos de tom CERTO: "Site difícil de encontrar no Google", "Visual do site não transmite a qualidade do serviço"
+REGRA DOS TÓPICOS: Cada item deve ter NO MÁXIMO 8 palavras. Use linguagem simples. Tom respeitoso e construtivo.
 
 Retorne APENAS este JSON válido sem markdown:
 {
@@ -504,7 +464,7 @@ Retorne APENAS este JSON válido sem markdown:
   "nota_seo": número de 1 a 10,
   "transmite_confianca": true ou false,
   "resumo": "primeira impressão honesta em até 100 caracteres",
-  "analise_nota": "descreva o que você viu e por que deu essa nota — seja específico com o que está na imagem",
+  "analise_nota": "descreva o que você viu e por que deu essa nota",
   "impacto_negocio": [
     "tópico curto, máx 8 palavras",
     "tópico curto, máx 8 palavras",
@@ -520,12 +480,11 @@ Retorne APENAS este JSON válido sem markdown:
     "tópico curto, máx 8 palavras",
     "tópico curto, máx 8 palavras"
   ],
-  "conclusao": "em até 60 palavras: explique de forma simples e respeitosa o que está limitando esse site de trazer mais clientes. Use palavras que qualquer pessoa entende, sem termos técnicos. O tom deve ser de quem identificou uma oportunidade real de melhoria, não de quem está criticando. Seja honesto mas construtivo."
+  "conclusao": "em até 60 palavras: explique de forma simples e respeitosa o que está limitando esse site de trazer mais clientes. Use palavras que qualquer pessoa entende, sem termos técnicos. Tom construtivo."
 }`
-            }
-          ]
         }]
-      });
+      }]
+    });
 
     const parts = geminiData.candidates?.[0]?.content?.parts || [];
     const textPart = parts.find(p => p.text && !p.thought);
@@ -535,7 +494,8 @@ Retorne APENAS este JSON válido sem markdown:
 
     try {
       const resultado = JSON.parse(text.split(String.fromCharCode(96,96,96)+'json').join('').split(String.fromCharCode(96,96,96)).join('').trim());
-      resultado.screenshot_url = `https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${encodeURIComponent(imgKey.key)}?token=${APIFY_KEY}`;
+      // screenshot_url não existe mais — usamos URL context
+      resultado.screenshot_url = null;
       cacheLayout[site] = resultado;
       res.json(resultado);
     } catch(e) {
@@ -546,6 +506,7 @@ Retorne APENAS este JSON válido sem markdown:
     res.json({ erro: e.message });
   }
 });
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
