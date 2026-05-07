@@ -423,11 +423,13 @@ ATENÇÃO: Avaliações de clientes, anos de experiência e outros dados do neg�
     }
 
     const geminiData = await geminiComRetry({
-      generationConfig: { temperature: 0, thinkingConfig: { thinkingBudget: 0 } },
+      generationConfig: { temperature: 0 },
       tools: [{ url_context: {} }],
       contents: [{
         parts: [{
           text: `Acesse e analise o site: ${site}
+
+INSTRUÇÃO CRÍTICA: Retorne APENAS o JSON abaixo, sem nenhum texto antes ou depois, sem raciocínio, sem explicações, sem markdown.
 
 ${htmlResumo}
 
