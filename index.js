@@ -309,7 +309,19 @@ Retorne APENAS este JSON válido sem markdown:
 
     if (!text) return res.json({ erro: 'Gemini não retornou análise', dados: geminiData });
 
-    const resultado = JSON.parse(text.split(String.fromCharCode(96,96,96)+'json').join('').split(String.fromCharCode(96,96,96)).join('').trim());
+    // Extrai o JSON mesmo quando vem com texto explicativo
+    let jsonStr = text;
+    const mdMatch = text.match(/```(?:json)?([\s\S]*?)```/);
+    if (mdMatch) {
+      jsonStr = mdMatch[1].trim();
+    } else {
+      const firstBrace = text.indexOf('{');
+      const lastBrace = text.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        jsonStr = text.substring(firstBrace, lastBrace + 1);
+      }
+    }
+    const resultado = JSON.parse(jsonStr);
 
     // Garante que o Gemini não ultrapassou o teto calculado pelo sistema
     resultado.nota = Math.min(resultado.nota, notaFrequenciaMaxima);
@@ -498,8 +510,21 @@ Retorne APENAS este JSON válido sem markdown:
     if (!text) return res.json({ erro: 'Gemini não retornou texto', dados: geminiData });
 
     try {
-      const resultado = JSON.parse(text.split(String.fromCharCode(96,96,96)+'json').join('').split(String.fromCharCode(96,96,96)).join('').trim());
-      // screenshot_url não existe mais — usamos URL context
+      // Extrai o JSON do texto mesmo quando vem com explicações antes/depois
+      let jsonStr = text;
+      // Tenta extrair bloco de código markdown
+      const mdMatch = text.match(/```(?:json)?([\s\S]*?)```/);
+      if (mdMatch) {
+        jsonStr = mdMatch[1].trim();
+      } else {
+        // Tenta encontrar o JSON pelo primeiro { e último }
+        const firstBrace = text.indexOf('{');
+        const lastBrace = text.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+          jsonStr = text.substring(firstBrace, lastBrace + 1);
+        }
+      }
+      const resultado = JSON.parse(jsonStr);
       resultado.screenshot_url = null;
       cacheLayout[site] = resultado;
       res.json(resultado);
