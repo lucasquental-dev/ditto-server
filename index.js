@@ -423,7 +423,7 @@ ATENÇÃO: Avaliações de clientes, anos de experiência e outros dados do neg�
     }
 
     const geminiData = await geminiComRetry({
-      generationConfig: { temperature: 0 },
+      generationConfig: { temperature: 0, maxOutputTokens: 8192 },
       tools: [{ url_context: {} }],
       contents: [{
         parts: [{
