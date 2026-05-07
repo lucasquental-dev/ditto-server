@@ -14,7 +14,7 @@ const GEMINI_KEY = process.env.GEMINI_KEY;
 const cacheLayout = {};
 const cacheInstagram = {};
 
-// Retry automático para o Gemini — tenta até 3 vezes se retornar 503
+// Retry automático para o Gemini — tenta até 4 vezes se retornar 503
 async function geminiComRetry(body, tentativas = 4) {
   for (let i = 0; i < tentativas; i++) {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
@@ -25,10 +25,9 @@ async function geminiComRetry(body, tentativas = 4) {
     const data = await res.json();
     const code = data && data.error && data.error.code;
     const status = data && data.error && data.error.status;
-    // Retry em caso de sobrecarga (503) ou indisponibilidade temporária
     if (code === 503 || status === 'UNAVAILABLE' || code === 429) {
       if (i < tentativas - 1) {
-        const espera = (i + 1) * 5000; // 5s, 10s, 15s
+        const espera = (i + 1) * 5000;
         console.log('Gemini ' + (code||status) + ' — tentativa ' + (i+1) + '/' + tentativas + ', aguardando ' + (espera/1000) + 's');
         await new Promise(r => setTimeout(r, espera));
         continue;
@@ -36,6 +35,36 @@ async function geminiComRetry(body, tentativas = 4) {
     }
     return data;
   }
+}
+
+// Extrai o JSON mais robusto — lida com raciocínio verbose antes do JSON
+function extrairJSON(text) {
+  if (!text) return null;
+
+  // 1. Tenta bloco markdown ```json ... ```
+  const mdMatch = text.match(/```(?:json)?([\s\S]*?)```/);
+  if (mdMatch) {
+    try { return JSON.parse(mdMatch[1].trim()); } catch(e) {}
+  }
+
+  // 2. Percorre de trás para frente a partir do último } para encontrar o JSON real
+  const lastBrace = text.lastIndexOf('}');
+  if (lastBrace !== -1) {
+    let depth = 0;
+    let start = -1;
+    for (let i = lastBrace; i >= 0; i--) {
+      if (text[i] === '}') depth++;
+      else if (text[i] === '{') {
+        depth--;
+        if (depth === 0) { start = i; break; }
+      }
+    }
+    if (start !== -1) {
+      try { return JSON.parse(text.substring(start, lastBrace + 1)); } catch(e) {}
+    }
+  }
+
+  return null;
 }
 
 app.get('/maps/textsearch', async (req, res) => {
@@ -82,9 +111,7 @@ app.get('/buscar-instagram', async (req, res) => {
         timeout: 10000
       });
       const html = await htmlRes.text();
-      // Múltiplos padrões para achar Instagram
       const blacklist = ['p','reel','explore','accounts','sharer','share','stories','about','legal','help','press','api','oauth','challenges','privacy','safety','username'];
-      // Padrão 1: link href direto para instagram.com/handle
       const matches = [...html.matchAll(/instagram\.com\/([a-zA-Z0-9_.]{2,30})(?:[/"\s?]|$)/gi)];
       for (const m of matches) {
         const handle = m[1].toLowerCase();
@@ -92,7 +119,6 @@ app.get('/buscar-instagram', async (req, res) => {
           return res.json({ instagram: '@' + m[1] });
         }
       }
-      // Padrão 2: atributo data- com handle do instagram
       const m2 = html.match(/data-(?:instagram|ig)[^"']*["']@?([a-zA-Z0-9_.]{2,30})["']/i);
       if (m2 && !blacklist.includes(m2[1].toLowerCase())) {
         return res.json({ instagram: '@' + m2[1] });
@@ -126,12 +152,9 @@ app.get('/buscar-instagram', async (req, res) => {
               const isPrivado = perfil.isPrivate || perfil.private;
               const totalPosts = perfil.mediaCount || perfil.postsCount || 0;
               const username = perfil.username.toLowerCase();
-              // Valida se o perfil faz sentido para uma empresa:
-              // Não pode ser privado, deve ter pelo menos 1 post,
-              // e o username deve ter alguma relação com o domínio do site
               const dominioLimpo = domain.toLowerCase().replace(/[^a-z0-9]/g, '');
               const usernameLimpo = username.replace(/[^a-z0-9]/g, '');
-              const temRelacao = usernameLimpo.includes(dominioLimpo) || 
+              const temRelacao = usernameLimpo.includes(dominioLimpo) ||
                                  dominioLimpo.includes(usernameLimpo) ||
                                  usernameLimpo.substring(0, 4) === dominioLimpo.substring(0, 4);
               if (!isPrivado && totalPosts > 0 && temRelacao) {
@@ -204,7 +227,7 @@ app.get('/analisar-instagram', async (req, res) => {
     const postsComData = posts.filter(p => p.timestamp);
     let frequenciaTexto = 'Não foi possível calcular';
     let diasDesdeUltimoPost = null;
-    let notaFrequenciaMaxima = 10; // teto calculado por código, não pelo Gemini
+    let notaFrequenciaMaxima = 10;
 
     if (postsComData.length > 0) {
       const datas = postsComData.map(p => new Date(p.timestamp)).sort((a, b) => b - a);
@@ -212,7 +235,6 @@ app.get('/analisar-instagram', async (req, res) => {
       const hoje = new Date();
       diasDesdeUltimoPost = Math.floor((hoje - ultimoPost) / (1000 * 60 * 60 * 24));
 
-      // Teto de nota baseado em inatividade — calculado objetivamente
       if (diasDesdeUltimoPost > 365) {
         notaFrequenciaMaxima = 2;
         frequenciaTexto = `Perfil inativo — último post há mais de ${Math.floor(diasDesdeUltimoPost/365)} ano(s)`;
@@ -238,10 +260,10 @@ app.get('/analisar-instagram', async (req, res) => {
     }));
 
     const geminiData = await geminiComRetry({
-        generationConfig: { temperature: 0 },
-        contents: [{
-          parts: [{
-            text: `Você é um avaliador RIGOROSO de presença digital em redes sociais para uma agência de marketing brasileira.
+      generationConfig: { temperature: 0 },
+      contents: [{
+        parts: [{
+          text: `Você é um avaliador RIGOROSO de presença digital em redes sociais para uma agência de marketing brasileira.
 
 DADOS OBJETIVOS DO PERFIL @${handle}:
 - Nome: ${perfil.nome}
@@ -264,10 +286,10 @@ ESCALA DE AVALIAÇÃO OBRIGATÓRIA (dentro do teto acima):
 - 7-8: Perfil bom — frequência regular, conteúdo relevante, bio completa
 - 9-10: Perfil excelente — referência no segmento (EXTREMAMENTE raro, use apenas se todos os indicadores forem excepcionais)
 
-REGRA INVIOLÁVEL PARA OS ARRAYS: Cada item de "impacto_negocio", "principais_falhas" e "oportunidades" deve ter NO MÁXIMO 8 palavras. Seja telegráfico. Exemplos corretos: "Perfil inativo há mais de 60 dias", "Bio vazia sem CTA", "Criar calendário editorial mensal". Exemplos ERRADOS: frases longas com explicação.
+REGRA INVIOLÁVEL PARA OS ARRAYS: Cada item de "impacto_negocio", "principais_falhas" e "oportunidades" deve ter NO MÁXIMO 8 palavras.
 
 REGRAS INVIOLÁVEIS:
-1. A nota final NÃO pode ser maior que ${notaFrequenciaMaxima} (teto calculado pelo sistema)
+1. A nota final NÃO pode ser maior que ${notaFrequenciaMaxima}
 2. Bio vazia ou sem CTA desconta 1 ponto
 3. Menos de 1.000 seguidores desconta 0.5 ponto
 4. Sem conta business desconta 0.5 ponto
@@ -282,26 +304,14 @@ Retorne APENAS este JSON válido sem markdown:
   "analise_bio": "análise objetiva da bio em 1 frase",
   "analise_conteudo": "análise objetiva das legendas e conteúdo em 1 frase",
   "resumo": "diagnóstico honesto do perfil em até 100 caracteres",
-  "impacto_negocio": [
-    "tópico curto, máx 8 palavras",
-    "tópico curto, máx 8 palavras",
-    "tópico curto, máx 8 palavras"
-  ],
-  "principais_falhas": [
-    "tópico curto, máx 8 palavras",
-    "tópico curto, máx 8 palavras",
-    "tópico curto, máx 8 palavras"
-  ],
-  "oportunidades": [
-    "tópico curto, máx 8 palavras",
-    "tópico curto, máx 8 palavras",
-    "tópico curto, máx 8 palavras"
-  ],
-  "conclusao": "em até 70 palavras: seja específico sobre o maior problema desse perfil. Cite algo concreto — frequência de posts, qualidade das legendas, bio vazia, imagens sem padrão. Explique de forma simples como isso afeta a percepção do visitante e o que poderia melhorar. Tom respeitoso e construtivo, como um consultor que quer ajudar."
+  "impacto_negocio": ["tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras"],
+  "principais_falhas": ["tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras"],
+  "oportunidades": ["tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras"],
+  "conclusao": "em até 70 palavras: seja específico sobre o maior problema desse perfil."
 }`
-          }]
         }]
-      });
+      }]
+    });
 
     const parts = geminiData.candidates?.[0]?.content?.parts || [];
     const textPart = parts.find(p => p.text && !p.thought);
@@ -309,21 +319,9 @@ Retorne APENAS este JSON válido sem markdown:
 
     if (!text) return res.json({ erro: 'Gemini não retornou análise', dados: geminiData });
 
-    // Extrai o JSON mesmo quando vem com texto explicativo
-    let jsonStr = text;
-    const mdMatch = text.match(/```(?:json)?([\s\S]*?)```/);
-    if (mdMatch) {
-      jsonStr = mdMatch[1].trim();
-    } else {
-      const firstBrace = text.indexOf('{');
-      const lastBrace = text.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1) {
-        jsonStr = text.substring(firstBrace, lastBrace + 1);
-      }
-    }
-    const resultado = JSON.parse(jsonStr);
+    const resultado = extrairJSON(text);
+    if (!resultado) return res.json({ erro: 'Erro ao parsear', texto: text });
 
-    // Garante que o Gemini não ultrapassou o teto calculado pelo sistema
     resultado.nota = Math.min(resultado.nota, notaFrequenciaMaxima);
     resultado.seguidores = perfil.seguidores;
     resultado.frequencia_calculada = frequenciaTexto;
@@ -376,8 +374,8 @@ app.get('/screenshot', async (req, res) => {
 app.get('/debug-gemini', async (req, res) => {
   try {
     const geminiData = await geminiComRetry({
-        contents: [{ parts: [{ text: 'Responda apenas: {"ok": true}' }] }]
-      });
+      contents: [{ parts: [{ text: 'Responda apenas: {"ok": true}' }] }]
+    });
     res.json(geminiData);
   } catch(e) { res.json({ erro: e.message }); }
 });
@@ -387,13 +385,11 @@ app.get('/analisar-layout', async (req, res) => {
     const { site } = req.query;
     if (!site) return res.json({ erro: 'Site não informado' });
 
-    // Retorna do cache se já analisou esse site
     if (cacheLayout[site]) {
       console.log('Cache hit layout:', site);
       return res.json(cacheLayout[site]);
     }
 
-    // Detecta plataforma pelo HTML para passar ao Gemini
     let htmlResumo = '';
     try {
       const htmlRes = await fetch(site, {
@@ -426,7 +422,6 @@ ATENÇÃO: Avaliações de clientes, anos de experiência e outros dados do neg�
       htmlResumo = 'DADOS TÉCNICOS: Não foi possível acessar o HTML do site.';
     }
 
-    // Usa URL Context Tool — Gemini acessa o site diretamente
     const geminiData = await geminiComRetry({
       generationConfig: { temperature: 0 },
       tools: [{ url_context: {} }],
@@ -441,39 +436,30 @@ REGRA CRÍTICA SOBRE OS DADOS TÉCNICOS:
 - Dados do NEGÓCIO como avaliações de clientes, anos de experiência, número de seguradoras: IGNORE para definir a nota — esses são méritos da empresa, não do site
 - A nota deve refletir a QUALIDADE VISUAL E DE DESIGN: identidade visual, hierarquia, modernidade, primeira impressão
 
-Você é um consultor sênior de marketing digital avaliando sites de corretoras de seguros brasileiras. Sua função é dar uma nota JUSTA e PRECISA — nem generosa nem punitiva demais.
+Você é um consultor sênior de marketing digital avaliando sites de empresas brasileiras. Sua função é dar uma nota JUSTA e PRECISA — nem generosa nem punitiva demais.
 
-ESCALA DE REFERÊNCIA — use esses exemplos reais como calibração:
-
-RUIM (1-4): Sites sem identidade visual própria, templates genéricos sem personalização, stock photos sem curadoria ou completamente fora de contexto, layout confuso ou datado, primeira impressão negativa.
-Exemplos do que é RUIM: template de plataforma genérica (oncorretor, builderall básico) sem nenhuma personalização; imagem hero de mãos sobre carrinho de brinquedo; formulário de contato como primeira coisa na home; layout que parece dos anos 2010 sem atualização.
-
-MÉDIO (5-6): Tem identidade visual básica e é funcional, mas falta diferencial claro. Pode ter problemas de hierarquia, execução incompleta, ou visual ok mas sem personalidade marcante. Isso inclui sites com design sofisticado mas com problemas sérios de usabilidade (texto sem hierarquia, sem imagens de apoio, leitura cansativa).
-
-BOM (7-8): Identidade visual forte e coesa, hierarquia clara, CTAs evidentes, transmite profissionalismo imediatamente. Pode ser simples mas bem executado.
-
+ESCALA DE REFERÊNCIA:
+RUIM (1-4): Sites sem identidade visual própria, templates genéricos sem personalização, stock photos sem curadoria, layout confuso ou datado, primeira impressão negativa.
+MÉDIO (5-6): Tem identidade visual básica e é funcional, mas falta diferencial claro. Visual ok mas sem personalidade marcante.
+BOM (7-8): Identidade visual forte e coesa, hierarquia clara, CTAs evidentes, transmite profissionalismo imediatamente.
 EXCELENTE (9-10): Referência absoluta no segmento. MUITO raro.
 
 CRITÉRIOS QUE MAIS PESAM:
 1. Identidade visual — tem marca própria ou parece template genérico?
-2. Hierarquia e usabilidade — é fácil de ler e navegar? Os títulos têm pesos diferentes?
+2. Hierarquia e usabilidade — é fácil de ler e navegar?
 3. Imagens — bem curadas e coerentes com o negócio?
 4. Primeira impressão — nos primeiros 3 segundos transmite profissionalismo?
 5. CTA — fica claro o que o visitante deve fazer?
 
 ATENÇÃO:
 - Paleta escura NÃO é penalização
-- Foto de banco bem curada = aceitável. Foto genérica demais = penaliza
 - Foto real da equipe = valoriza muito
 - Muito texto sem hierarquia = penaliza
-- NUNCA reporte números ou percentuais que aparecem zerados, como "0%", "0 clientes", "R$ 0" — esses são elementos dinâmicos que ainda não carregaram no HTML. Simplesmente ignore esses valores e não os mencione na análise
-- NUNCA diga que um vídeo está quebrado ou não funciona — você está lendo o HTML estático e não consegue executar JavaScript. Se houver um elemento de vídeo, apenas ignore
-- Se tiver dúvida se um dado é real ou dinâmico, IGNORE — cite apenas o que é claramente visível e estático
+- NUNCA reporte números zerados como "0%", "0 clientes", "R$ 0" — são dinâmicos, ignore
+- NUNCA diga que vídeo está quebrado — você lê HTML estático, ignore elementos de vídeo
+- Se identificar oncorretor.com.br: -1 ponto e mencione nas falhas
 
-SISTEMAS GENÉRICOS — PENALIZAÇÃO OBRIGATÓRIA:
-Se identificar oncorretor.com.br ou sistema similar: -1 ponto e mencione nas falhas.
-
-REGRA DOS TÓPICOS: Cada item deve ter NO MÁXIMO 8 palavras. Use linguagem simples. Tom respeitoso e construtivo.
+REGRA DOS TÓPICOS: Cada item deve ter NO MÁXIMO 8 palavras.
 
 Retorne APENAS este JSON válido sem markdown:
 {
@@ -481,23 +467,11 @@ Retorne APENAS este JSON válido sem markdown:
   "nota_seo": número de 1 a 10,
   "transmite_confianca": true ou false,
   "resumo": "primeira impressão honesta em até 100 caracteres",
-  "analise_nota": "descreva de forma específica e pessoal o que você viu no site — cite elementos concretos como cores, fontes, imagens, layout, botões. Ex: 'A home abre com um banner grande mas sem texto claro de proposta de valor. As cores azul e laranja entram em conflito visual. O menu tem 8 itens sem hierarquia clara.' Seja específico o suficiente para o dono do site reconhecer exatamente do que está falando.",
-  "impacto_negocio": [
-    "tópico curto, máx 8 palavras",
-    "tópico curto, máx 8 palavras",
-    "tópico curto, máx 8 palavras"
-  ],
-  "principais_falhas": [
-    "tópico curto, máx 8 palavras",
-    "tópico curto, máx 8 palavras",
-    "tópico curto, máx 8 palavras"
-  ],
-  "oportunidades": [
-    "tópico curto, máx 8 palavras",
-    "tópico curto, máx 8 palavras",
-    "tópico curto, máx 8 palavras"
-  ],
-  "conclusao": "em até 70 palavras: seja específico sobre o maior problema visual ou de usabilidade que você identificou nesse site. Cite algo concreto — uma cor, uma imagem, um elemento específico. Explique de forma simples como isso afeta a percepção do visitante e o que poderia melhorar. Tom respeitoso e construtivo, como um consultor que quer ajudar."
+  "analise_nota": "descreva de forma específica o que você viu — cite cores, fontes, imagens, layout, botões concretos",
+  "impacto_negocio": ["tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras"],
+  "principais_falhas": ["tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras"],
+  "oportunidades": ["tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras"],
+  "conclusao": "em até 70 palavras: seja específico sobre o maior problema visual ou de usabilidade. Cite algo concreto. Tom respeitoso e construtivo."
 }`
         }]
       }]
@@ -509,34 +483,17 @@ Retorne APENAS este JSON válido sem markdown:
 
     if (!text) return res.json({ erro: 'Gemini não retornou texto', dados: geminiData });
 
-    try {
-      // Extrai o JSON do texto mesmo quando vem com explicações antes/depois
-      let jsonStr = text;
-      // Tenta extrair bloco de código markdown
-      const mdMatch = text.match(/```(?:json)?([\s\S]*?)```/);
-      if (mdMatch) {
-        jsonStr = mdMatch[1].trim();
-      } else {
-        // Tenta encontrar o JSON pelo primeiro { e último }
-        const firstBrace = text.indexOf('{');
-        const lastBrace = text.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace !== -1) {
-          jsonStr = text.substring(firstBrace, lastBrace + 1);
-        }
-      }
-      const resultado = JSON.parse(jsonStr);
-      resultado.screenshot_url = null;
-      cacheLayout[site] = resultado;
-      res.json(resultado);
-    } catch(e) {
-      res.json({ erro: 'Erro ao parsear', texto: text });
-    }
+    const resultado = extrairJSON(text);
+    if (!resultado) return res.json({ erro: 'Erro ao parsear', texto: text.substring(0, 500) });
+
+    resultado.screenshot_url = null;
+    cacheLayout[site] = resultado;
+    res.json(resultado);
 
   } catch(e) {
     res.json({ erro: e.message });
   }
 });
-
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
