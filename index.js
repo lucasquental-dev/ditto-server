@@ -295,7 +295,7 @@ Retorne APENAS este JSON válido sem markdown:
     "tópico curto, máx 8 palavras",
     "tópico curto, máx 8 palavras"
   ],
-  "conclusao": "em até 60 palavras: explique de forma simples e respeitosa o que está limitando esse perfil de trazer mais clientes. Use palavras que qualquer pessoa entende, sem termos técnicos. O tom deve ser de quem identificou uma oportunidade real de melhoria, não de quem está criticando. Seja honesto mas construtivo."
+  "conclusao": "em até 70 palavras: seja específico sobre o maior problema desse perfil. Cite algo concreto — frequência de posts, qualidade das legendas, bio vazia, imagens sem padrão. Explique de forma simples como isso afeta a percepção do visitante e o que poderia melhorar. Tom respeitoso e construtivo, como um consultor que quer ajudar."
 }`
           }]
         }]
@@ -464,7 +464,7 @@ Retorne APENAS este JSON válido sem markdown:
   "nota_seo": número de 1 a 10,
   "transmite_confianca": true ou false,
   "resumo": "primeira impressão honesta em até 100 caracteres",
-  "analise_nota": "descreva o que você viu e por que deu essa nota",
+  "analise_nota": "descreva de forma específica e pessoal o que você viu no site — cite elementos concretos como cores, fontes, imagens, layout, botões. Ex: 'A home abre com um banner grande mas sem texto claro de proposta de valor. As cores azul e laranja entram em conflito visual. O menu tem 8 itens sem hierarquia clara.' Seja específico o suficiente para o dono do site reconhecer exatamente do que está falando.",
   "impacto_negocio": [
     "tópico curto, máx 8 palavras",
     "tópico curto, máx 8 palavras",
@@ -480,7 +480,7 @@ Retorne APENAS este JSON válido sem markdown:
     "tópico curto, máx 8 palavras",
     "tópico curto, máx 8 palavras"
   ],
-  "conclusao": "em até 60 palavras: explique de forma simples e respeitosa o que está limitando esse site de trazer mais clientes. Use palavras que qualquer pessoa entende, sem termos técnicos. Tom construtivo."
+  "conclusao": "em até 70 palavras: seja específico sobre o maior problema visual ou de usabilidade que você identificou nesse site. Cite algo concreto — uma cor, uma imagem, um elemento específico. Explique de forma simples como isso afeta a percepção do visitante e o que poderia melhorar. Tom respeitoso e construtivo, como um consultor que quer ajudar."
 }`
         }]
       }]
