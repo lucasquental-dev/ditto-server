@@ -299,7 +299,7 @@ app.get('/analisar-layout', async (req, res) => {
         .substring(0, 15000);
       htmlResumo = `\nDADOS TÉCNICOS:\n- Plataforma: ${platform}\n- Título: ${metaTitle || 'Não definido'}\n- Meta description: ${metaDesc || 'Não definida'}\n- H1s: ${h1s.join(' | ') || 'Nenhum encontrado'}\n- H2s: ${h2s.join(' | ') || 'Nenhum encontrado'}\n\nCONTEÚDO DO SITE (texto extraído):\n${htmlTexto}\n\nATENÇÃO: Dados do negócio NÃO devem elevar a nota.`;
     } catch(e) {
-      htmlResumo = 'DADOS TÉCNICOS: Não foi possível acessar o HTML.';
+      htmlResumo = 'DADOS TÉCNICOS: Site inacessível — não foi possível carregar o HTML. O site está fora do ar ou bloqueando acesso. Isso é um problema GRAVÍSSIMO. Nota máxima permitida: 2. Mencione obrigatoriamente nas falhas que o site está inacessível.';
     }
     const geminiData = await geminiComRetry({
       generationConfig: { temperature: 0, maxOutputTokens: 8192 },
