@@ -290,14 +290,20 @@ app.get('/analisar-layout', async (req, res) => {
                        htmlRaw.includes('wordpress') ? 'WordPress' :
                        htmlRaw.includes('lovable') ? 'Lovable (IA)' :
                        htmlRaw.includes('webflow') ? 'Webflow' : 'Site próprio';
-      htmlResumo = `\nDADOS TÉCNICOS:\n- Plataforma: ${platform}\n- Título: ${metaTitle || 'Não definido'}\n- Meta description: ${metaDesc || 'Não definida'}\n- H1s: ${h1s.join(' | ') || 'Nenhum encontrado'}\n- H2s: ${h2s.join(' | ') || 'Nenhum encontrado'}\nATENÇÃO: Dados do negócio NÃO devem elevar a nota.`;
+      const htmlTexto = htmlRaw
+        .replace(/<script[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 15000);
+      htmlResumo = `\nDADOS TÉCNICOS:\n- Plataforma: ${platform}\n- Título: ${metaTitle || 'Não definido'}\n- Meta description: ${metaDesc || 'Não definida'}\n- H1s: ${h1s.join(' | ') || 'Nenhum encontrado'}\n- H2s: ${h2s.join(' | ') || 'Nenhum encontrado'}\n\nCONTEÚDO DO SITE (texto extraído):\n${htmlTexto}\n\nATENÇÃO: Dados do negócio NÃO devem elevar a nota.`;
     } catch(e) {
       htmlResumo = 'DADOS TÉCNICOS: Não foi possível acessar o HTML.';
     }
     const geminiData = await geminiComRetry({
-      generationConfig: { temperature: 0, maxOutputTokens: 16384 },
-      tools: [{ url_context: {} }],
-      contents: [{ parts: [{ text: `Acesse e analise o site: ${site}\n\nINSTRUÇÃO CRÍTICA: Retorne APENAS o JSON abaixo, sem nenhum texto antes ou depois, sem markdown, sem explicações.\n\n${htmlResumo}\n\nVocê é um consultor sênior de marketing digital avaliando sites de empresas brasileiras.\n\nESCALA:\nRUIM (1-4): Sem identidade visual, templates genéricos, primeira impressão negativa.\nMÉDIO (5-6): Funcional mas sem diferencial claro.\nBOM (7-8): Identidade forte, hierarquia clara, profissional.\nEXCELENTE (9-10): Referência absoluta. MUITO raro.\n\nCRITÉRIOS:\n1. Identidade visual — marca própria ou template genérico?\n2. Hierarquia — fácil de ler e navegar?\n3. Imagens — curadas e coerentes?\n4. Primeira impressão — 3 segundos transmite profissionalismo?\n5. CTA — claro o que o visitante deve fazer?\n\nREGRAS:\n- Paleta escura NÃO penaliza\n- Foto real da equipe valoriza muito\n- Números zerados (0%, R$0): IGNORE\n- oncorretor.com.br: -1 ponto nas falhas\n- Cada tópico: NO MÁXIMO 8 palavras\n\nRETORNE APENAS este JSON:\n{\n  "nota": número 1-10,\n  "nota_seo": número 1-10,\n  "transmite_confianca": true ou false,\n  "resumo": "primeira impressão em até 100 caracteres",\n  "analise_nota": "elementos concretos: cores, fontes, imagens, layout",\n  "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "conclusao": "até 70 palavras: maior problema visual concreto, tom construtivo."\n}` }] }]
+      generationConfig: { temperature: 0, maxOutputTokens: 8192 },
+      contents: [{ parts: [{ text: `Você é um consultor sênior de marketing digital avaliando o site: ${site}\n\n${htmlResumo}\n\nINSTRUÇÃO CRÍTICA: Retorne APENAS o JSON, sem texto antes ou depois, sem markdown.\n\nESCALA:\nRUIM (1-4): Sem identidade visual, templates genéricos, primeira impressão negativa.\nMÉDIO (5-6): Funcional mas sem diferencial claro.\nBOM (7-8): Identidade forte, hierarquia clara, profissional.\nEXCELENTE (9-10): Referência absoluta. MUITO raro.\n\nCRITÉRIOS:\n1. Identidade visual — marca própria ou template genérico?\n2. Hierarquia — fácil de ler e navegar?\n3. Textos — claros, profissionais, com CTA?\n4. Primeira impressão — transmite profissionalismo?\n5. SEO básico — título, descrição, H1 presentes?\n\nREGRAS:\n- Foto real da equipe valoriza muito\n- Números zerados (0%, R$0): IGNORE\n- oncorretor.com.br: -1 ponto nas falhas\n- Cada tópico: NO MÁXIMO 8 palavras\n\nRETORNE APENAS este JSON:\n{\n  "nota": número 1-10,\n  "nota_seo": número 1-10,\n  "transmite_confianca": true ou false,\n  "resumo": "primeira impressão em até 100 caracteres",\n  "analise_nota": "elementos concretos: identidade, textos, estrutura",\n  "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "conclusao": "até 70 palavras: maior problema concreto, tom construtivo."\n}` }] }]
     });
     const parts = geminiData.candidates?.[0]?.content?.parts || [];
     const textPart = parts.find(p => p.text && !p.thought);
