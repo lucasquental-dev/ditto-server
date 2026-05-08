@@ -4,7 +4,7 @@ const cors = require('cors');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 const MAPS_KEY = process.env.MAPS_KEY;
 const APIFY_KEY = process.env.APIFY_KEY;
@@ -58,6 +58,93 @@ function extrairJSON(text) {
   }
   return null;
 }
+
+// ── ROTA PDF com Puppeteer — uma página por seção, altura exata ──
+app.post('/gerar-pdf', async (req, res) => {
+  let browser = null;
+  try {
+    const { html, nome } = req.body;
+    if (!html) return res.status(400).json({ erro: 'HTML não fornecido' });
+
+    const chromium = require('@sparticuz/chromium');
+    const puppeteer = require('puppeteer-core');
+    const { PDFDocument } = require('pdf-lib');
+
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: { width: 1200, height: 5000 },
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
+
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1200, height: 5000 });
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.evaluate(() => document.fonts.ready);
+    await new Promise(r => setTimeout(r, 1000));
+
+    // Mede posição e altura de cada seção usando offsetTop/offsetHeight
+    const secoes = await page.evaluate(() => {
+      const selectors = ['.section-hero-bg', '.section-rest-bg', '.section-conc-bg'];
+      return selectors.map(sel => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        // Calcula offsetTop absoluto
+        let top = 0;
+        let current = el;
+        while (current) {
+          top += current.offsetTop || 0;
+          current = current.offsetParent;
+        }
+        return {
+          top: Math.round(top),
+          height: Math.round(el.offsetHeight)
+        };
+      }).filter(Boolean);
+    });
+
+    console.log('Seções medidas:', JSON.stringify(secoes));
+
+    const pdfDoc = await PDFDocument.create();
+
+    for (const secao of secoes) {
+      const sectionPdf = await page.pdf({
+        width: `1200px`,
+        height: `${secao.height}px`,
+        printBackground: true,
+        margin: { top: 0, right: 0, bottom: 0, left: 0 },
+        clip: {
+          x: 0,
+          y: secao.top,
+          width: 1200,
+          height: secao.height
+        }
+      });
+
+      const sectionDoc = await PDFDocument.load(sectionPdf);
+      const [copiedPage] = await pdfDoc.copyPages(sectionDoc, [0]);
+      pdfDoc.addPage(copiedPage);
+    }
+
+    await browser.close();
+    browser = null;
+
+    const pdfBytes = await pdfDoc.save();
+    const nomeArquivo = (nome || 'diagnostico').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="ditto-diagnostico-${nomeArquivo}.pdf"`,
+      'Content-Length': pdfBytes.length,
+    });
+    res.send(Buffer.from(pdfBytes));
+
+  } catch(e) {
+    if (browser) { try { await browser.close(); } catch(_) {} }
+    console.error('Erro ao gerar PDF:', e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
 
 app.get('/maps/textsearch', async (req, res) => {
   try {
@@ -165,11 +252,14 @@ app.get('/analisar-instagram', async (req, res) => {
   try {
     const { username } = req.query;
     if (!username) return res.json({ erro: 'Username não informado' });
+
     const handle = username.replace('@', '');
+
     if (cacheInstagram[handle]) {
       console.log('Cache hit instagram:', handle);
       return res.json(cacheInstagram[handle]);
     }
+
     const runRes = await fetch(`https://api.apify.com/v2/acts/apify~instagram-scraper/runs?token=${APIFY_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -180,9 +270,11 @@ app.get('/analisar-instagram', async (req, res) => {
         addParentData: true
       })
     });
+
     const runData = await runRes.json();
     const runId = runData.data?.id;
     if (!runId) return res.json({ erro: 'Erro ao iniciar scraping' });
+
     let status = 'RUNNING';
     let tentativas = 0;
     while (status === 'RUNNING' && tentativas < 20) {
@@ -192,10 +284,14 @@ app.get('/analisar-instagram', async (req, res) => {
       status = statusData.data?.status || 'FAILED';
       tentativas++;
     }
+
     if (status !== 'SUCCEEDED') return res.json({ erro: 'Scraping falhou' });
+
     const resultRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_KEY}`);
     const posts = await resultRes.json();
+
     if (!posts || posts.length === 0) return res.json({ erro: 'Nenhum dado encontrado' });
+
     const primeiro = posts[0];
     const perfil = {
       username: primeiro.ownerUsername || handle,
@@ -205,15 +301,18 @@ app.get('/analisar-instagram', async (req, res) => {
       totalPosts: primeiro.metaData?.postsCount || posts.length,
       isBusinessAccount: primeiro.metaData?.isBusinessAccount || false
     };
+
     const postsComData = posts.filter(p => p.timestamp);
     let frequenciaTexto = 'Não foi possível calcular';
     let diasDesdeUltimoPost = null;
     let notaFrequenciaMaxima = 10;
+
     if (postsComData.length > 0) {
       const datas = postsComData.map(p => new Date(p.timestamp)).sort((a, b) => b - a);
       const ultimoPost = datas[0];
       const hoje = new Date();
       diasDesdeUltimoPost = Math.floor((hoje - ultimoPost) / (1000 * 60 * 60 * 24));
+
       if (diasDesdeUltimoPost > 365) {
         notaFrequenciaMaxima = 2;
         frequenciaTexto = `Perfil inativo — último post há mais de ${Math.floor(diasDesdeUltimoPost/365)} ano(s)`;
@@ -230,29 +329,117 @@ app.get('/analisar-instagram', async (req, res) => {
         frequenciaTexto = `Aproximadamente ${postsPorSemana} posts por semana`;
       }
     }
+
     const resumoPosts = posts.slice(0, 8).map(p => ({
       legenda: (p.caption || '').substring(0, 200),
       likes: p.likesCount || 0,
       data: p.timestamp ? new Date(p.timestamp).toLocaleDateString('pt-BR') : 'desconhecida',
       tipo: p.type || 'post'
     }));
+
     const geminiData = await geminiComRetry({
       generationConfig: { temperature: 0 },
-      contents: [{ parts: [{ text: `Você é um avaliador RIGOROSO de presença digital em redes sociais para uma agência de marketing brasileira.\n\nDADOS OBJETIVOS DO PERFIL @${handle}:\n- Nome: ${perfil.nome}\n- Bio: ${perfil.bio || 'Não preenchida'}\n- Seguidores: ${perfil.seguidores}\n- Total de posts: ${perfil.totalPosts}\n- Conta business: ${perfil.isBusinessAccount ? 'Sim' : 'Não'}\n- Frequência calculada pelo sistema: ${frequenciaTexto}\n- Dias desde último post: ${diasDesdeUltimoPost !== null ? diasDesdeUltimoPost + ' dias' : 'desconhecido'}\n- NOTA MÁXIMA PERMITIDA PELO SISTEMA: ${notaFrequenciaMaxima}\n\nÚltimos posts analisados:\n${JSON.stringify(resumoPosts, null, 2)}\n\nRetorne APENAS este JSON válido sem markdown:\n{\n  "nota": número de 1 a ${notaFrequenciaMaxima},\n  "seguidores": número,\n  "frequencia": "descrição precisa",\n  "analise_bio": "análise objetiva da bio em 1 frase",\n  "analise_conteudo": "análise objetiva das legendas em 1 frase",\n  "resumo": "diagnóstico honesto em até 100 caracteres",\n  "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "conclusao": "em até 70 palavras: maior problema do perfil."\n}` }] }]
+      contents: [{
+        parts: [{
+          text: `Você é um avaliador RIGOROSO de presença digital em redes sociais para uma agência de marketing brasileira.
+
+DADOS OBJETIVOS DO PERFIL @${handle}:
+- Nome: ${perfil.nome}
+- Bio: ${perfil.bio || 'Não preenchida'}
+- Seguidores: ${perfil.seguidores}
+- Total de posts: ${perfil.totalPosts}
+- Conta business: ${perfil.isBusinessAccount ? 'Sim' : 'Não'}
+- Frequência calculada pelo sistema: ${frequenciaTexto}
+- Dias desde último post: ${diasDesdeUltimoPost !== null ? diasDesdeUltimoPost + ' dias' : 'desconhecido'}
+- NOTA MÁXIMA PERMITIDA PELO SISTEMA: ${notaFrequenciaMaxima}
+
+Últimos posts analisados:
+${JSON.stringify(resumoPosts, null, 2)}
+
+ESCALA DE AVALIAÇÃO OBRIGATÓRIA:
+- 1-2: Perfil abandonado
+- 3-4: Perfil muito fraco
+- 5: Perfil mediano
+- 6: Perfil razoável
+- 7-8: Perfil bom
+- 9-10: Perfil excelente (EXTREMAMENTE raro)
+
+REGRAS INVIOLÁVEIS:
+1. Nota NÃO pode ser maior que ${notaFrequenciaMaxima}
+2. Bio vazia ou sem CTA desconta 1 ponto
+3. Menos de 1.000 seguidores desconta 0.5 ponto
+4. Sem conta business desconta 0.5 ponto
+5. Legendas sem estratégia descontam 1 ponto
+
+Retorne APENAS este JSON válido sem markdown:
+{
+  "nota": número de 1 a ${notaFrequenciaMaxima},
+  "seguidores": número,
+  "frequencia": "descrição precisa",
+  "analise_bio": "análise objetiva da bio em 1 frase",
+  "analise_conteudo": "análise objetiva das legendas em 1 frase",
+  "resumo": "diagnóstico honesto em até 100 caracteres",
+  "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "conclusao": "em até 70 palavras: maior problema do perfil, específico e construtivo."
+}`
+        }]
+      }]
     });
+
     const parts = geminiData.candidates?.[0]?.content?.parts || [];
     const textPart = parts.find(p => p.text && !p.thought);
     const text = textPart?.text || '';
+
     if (!text) return res.json({ erro: 'Gemini não retornou análise' });
+
     const resultado = extrairJSON(text);
     if (!resultado) return res.json({ erro: 'Erro ao parsear' });
+
     resultado.nota = Math.min(resultado.nota, notaFrequenciaMaxima);
     resultado.seguidores = perfil.seguidores;
     resultado.frequencia_calculada = frequenciaTexto;
     resultado.dias_desde_ultimo_post = diasDesdeUltimoPost;
+
     cacheInstagram[handle] = resultado;
     res.json(resultado);
-  } catch(e) { res.json({ erro: e.message }); }
+
+  } catch(e) {
+    res.json({ erro: e.message });
+  }
+});
+
+app.get('/screenshot', async (req, res) => {
+  try {
+    const { site } = req.query;
+    if (!site) return res.json({ url: null });
+    const runRes = await fetch(`https://api.apify.com/v2/acts/apify~screenshot-url/runs?token=${APIFY_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: [{ url: site }], waitUntil: 'load', delay: 500 })
+    });
+    const runData = await runRes.json();
+    const runId = runData.data?.id;
+    const kvStoreId = runData.data?.defaultKeyValueStoreId;
+    if (!runId) return res.json({ url: null });
+    let status = 'RUNNING';
+    let tentativas = 0;
+    while (status === 'RUNNING' && tentativas < 20) {
+      await new Promise(r => setTimeout(r, 2000));
+      const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_KEY}`);
+      const statusData = await statusRes.json();
+      status = statusData.data?.status || 'FAILED';
+      tentativas++;
+    }
+    if (status !== 'SUCCEEDED') return res.json({ url: null });
+    const keysRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/keys?token=${APIFY_KEY}`);
+    const keysData = await keysRes.json();
+    const keys = keysData.data?.items || [];
+    const imgKey = keys.find(k => k.key.startsWith('screenshot_'));
+    if (!imgKey) return res.json({ url: null });
+    res.json({ url: `https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${encodeURIComponent(imgKey.key)}?token=${APIFY_KEY}` });
+  } catch(e) { res.json({ url: null }); }
 });
 
 app.get('/debug-gemini', async (req, res) => {
@@ -268,10 +455,12 @@ app.get('/analisar-layout', async (req, res) => {
   try {
     const { site } = req.query;
     if (!site) return res.json({ erro: 'Site não informado' });
+
     if (cacheLayout[site]) {
       console.log('Cache hit layout:', site);
       return res.json(cacheLayout[site]);
     }
+
     let htmlResumo = '';
     try {
       const htmlRes = await fetch(site, {
@@ -290,25 +479,83 @@ app.get('/analisar-layout', async (req, res) => {
                        htmlRaw.includes('wordpress') ? 'WordPress' :
                        htmlRaw.includes('lovable') ? 'Lovable (IA)' :
                        htmlRaw.includes('webflow') ? 'Webflow' : 'Site próprio';
-      htmlResumo = `\nDADOS TÉCNICOS:\n- Plataforma: ${platform}\n- Título: ${metaTitle || 'Não definido'}\n- Meta description: ${metaDesc || 'Não definida'}\n- H1s: ${h1s.join(' | ') || 'Nenhum encontrado'}\n- H2s: ${h2s.join(' | ') || 'Nenhum encontrado'}\nATENÇÃO: Dados do negócio NÃO devem elevar a nota.`;
+      htmlResumo = `
+DADOS TÉCNICOS:
+- Plataforma: ${platform}
+- Título: ${metaTitle || 'Não definido'}
+- Meta description: ${metaDesc || 'Não definida'}
+- H1s: ${h1s.join(' | ') || 'Nenhum encontrado'}
+- H2s: ${h2s.join(' | ') || 'Nenhum encontrado'}
+ATENÇÃO: Dados do negócio NÃO devem elevar a nota.`;
     } catch(e) {
       htmlResumo = 'DADOS TÉCNICOS: Não foi possível acessar o HTML.';
     }
+
     const geminiData = await geminiComRetry({
       generationConfig: { temperature: 0, maxOutputTokens: 8192 },
       tools: [{ url_context: {} }],
-      contents: [{ parts: [{ text: `Acesse e analise o site: ${site}\n\nINSTRUÇÃO CRÍTICA: Retorne APENAS o JSON, sem texto antes ou depois, sem markdown.\n\n${htmlResumo}\n\nVocê é um consultor sênior de marketing digital avaliando sites de empresas brasileiras.\n\nESCALA:\nRUIM (1-4): Sem identidade visual, templates genéricos, primeira impressão negativa.\nMÉDIO (5-6): Funcional mas sem diferencial claro.\nBOM (7-8): Identidade forte, hierarquia clara, profissional.\nEXCELENTE (9-10): Referência absoluta. MUITO raro.\n\nRETORNE APENAS este JSON:\n{\n  "nota": número 1-10,\n  "nota_seo": número 1-10,\n  "transmite_confianca": true ou false,\n  "resumo": "primeira impressão em até 100 caracteres",\n  "analise_nota": "elementos concretos: cores, fontes, imagens, layout",\n  "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "conclusao": "até 70 palavras: maior problema visual concreto, tom construtivo."\n}` }] }]
+      contents: [{
+        parts: [{
+          text: `Acesse e analise o site: ${site}
+
+INSTRUÇÃO CRÍTICA: Retorne APENAS o JSON, sem texto antes ou depois, sem markdown.
+
+${htmlResumo}
+
+Você é um consultor sênior de marketing digital avaliando sites de empresas brasileiras.
+
+ESCALA:
+RUIM (1-4): Sem identidade visual, templates genéricos, primeira impressão negativa.
+MÉDIO (5-6): Funcional mas sem diferencial claro.
+BOM (7-8): Identidade forte, hierarquia clara, profissional.
+EXCELENTE (9-10): Referência absoluta. MUITO raro.
+
+CRITÉRIOS:
+1. Identidade visual — marca própria ou template genérico?
+2. Hierarquia — fácil de ler e navegar?
+3. Imagens — curadas e coerentes?
+4. Primeira impressão — 3 segundos transmite profissionalismo?
+5. CTA — claro o que o visitante deve fazer?
+
+REGRAS:
+- Paleta escura NÃO penaliza
+- Foto real da equipe valoriza muito
+- Números zerados (0%, R$0): IGNORE
+- oncorretor.com.br: -1 ponto nas falhas
+- Cada tópico: NO MÁXIMO 8 palavras
+
+Retorne APENAS este JSON:
+{
+  "nota": número 1-10,
+  "nota_seo": número 1-10,
+  "transmite_confianca": true ou false,
+  "resumo": "primeira impressão em até 100 caracteres",
+  "analise_nota": "elementos concretos: cores, fontes, imagens, layout",
+  "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "conclusao": "até 70 palavras: maior problema visual concreto, tom construtivo."
+}`
+        }]
+      }]
     });
+
     const parts = geminiData.candidates?.[0]?.content?.parts || [];
     const textPart = parts.find(p => p.text && !p.thought);
     const text = textPart?.text || '';
+
     if (!text) return res.json({ erro: 'Gemini não retornou texto', dados: geminiData });
+
     const resultado = extrairJSON(text);
     if (!resultado) return res.json({ erro: 'Erro ao parsear', texto: text.substring(0, 500) });
+
     resultado.screenshot_url = null;
     cacheLayout[site] = resultado;
     res.json(resultado);
-  } catch(e) { res.json({ erro: e.message }); }
+
+  } catch(e) {
+    res.json({ erro: e.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
