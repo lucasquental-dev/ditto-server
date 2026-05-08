@@ -59,7 +59,7 @@ function extrairJSON(text) {
   return null;
 }
 
-// ── ROTA PDF com Puppeteer — altura variável por seção ──
+// ── ROTA PDF com Puppeteer — uma página por seção, altura exata ──
 app.post('/gerar-pdf', async (req, res) => {
   let browser = null;
   try {
@@ -68,57 +68,58 @@ app.post('/gerar-pdf', async (req, res) => {
 
     const chromium = require('@sparticuz/chromium');
     const puppeteer = require('puppeteer-core');
+    const { PDFDocument } = require('pdf-lib');
 
     browser = await puppeteer.launch({
       args: chromium.args,
-      defaultViewport: { width: 1200, height: 900 },
+      defaultViewport: { width: 1200, height: 5000 },
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
     });
 
     const page = await browser.newPage();
-    await page.setViewport({ width: 1200, height: 900 });
+    await page.setViewport({ width: 1200, height: 5000 });
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
     await page.evaluate(() => document.fonts.ready);
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 1000));
 
-    // Mede a altura real de cada seção
+    // Mede posição e altura de cada seção usando offsetTop/offsetHeight
     const secoes = await page.evaluate(() => {
       const selectors = ['.section-hero-bg', '.section-rest-bg', '.section-conc-bg'];
       return selectors.map(sel => {
         const el = document.querySelector(sel);
         if (!el) return null;
-        const rect = el.getBoundingClientRect();
-        return { height: Math.ceil(rect.height) };
+        // Calcula offsetTop absoluto
+        let top = 0;
+        let current = el;
+        while (current) {
+          top += current.offsetTop || 0;
+          current = current.offsetParent;
+        }
+        return {
+          top: Math.round(top),
+          height: Math.round(el.offsetHeight)
+        };
       }).filter(Boolean);
     });
 
-    // Gera um PDF por seção com altura exata
-    const { PDFDocument } = require('pdf-lib');
+    console.log('Seções medidas:', JSON.stringify(secoes));
+
     const pdfDoc = await PDFDocument.create();
 
-    for (let i = 0; i < secoes.length; i++) {
-      const sectionPage = await browser.newPage();
-      await sectionPage.setViewport({ width: 1200, height: secoes[i].height });
-      await sectionPage.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
-      await sectionPage.evaluate(() => document.fonts.ready);
-
-      // Rola para a posição da seção
-      const sectionSelectors = ['.section-hero-bg', '.section-rest-bg', '.section-conc-bg'];
-      const offsetTop = await sectionPage.evaluate((sel) => {
-        const el = document.querySelector(sel);
-        return el ? Math.round(el.getBoundingClientRect().top + window.scrollY) : 0;
-      }, sectionSelectors[i]);
-
-      const sectionPdf = await sectionPage.pdf({
+    for (const secao of secoes) {
+      const sectionPdf = await page.pdf({
         width: `1200px`,
-        height: `${secoes[i].height}px`,
+        height: `${secao.height}px`,
         printBackground: true,
         margin: { top: 0, right: 0, bottom: 0, left: 0 },
-        clip: { x: 0, y: offsetTop, width: 1200, height: secoes[i].height }
+        clip: {
+          x: 0,
+          y: secao.top,
+          width: 1200,
+          height: secao.height
+        }
       });
-
-      await sectionPage.close();
 
       const sectionDoc = await PDFDocument.load(sectionPdf);
       const [copiedPage] = await pdfDoc.copyPages(sectionDoc, [0]);
