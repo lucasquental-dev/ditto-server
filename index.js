@@ -59,7 +59,7 @@ function extrairJSON(text) {
   return null;
 }
 
-// ── ROTA PDF com Puppeteer ──
+// ── ROTA PDF com Puppeteer — altura variável por seção ──
 app.post('/gerar-pdf', async (req, res) => {
   let browser = null;
   try {
@@ -77,29 +77,66 @@ app.post('/gerar-pdf', async (req, res) => {
     });
 
     const page = await browser.newPage();
+    await page.setViewport({ width: 1200, height: 900 });
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
-
-    // Aguarda fontes carregarem
     await page.evaluate(() => document.fonts.ready);
     await new Promise(r => setTimeout(r, 500));
 
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      landscape: true,
-      printBackground: true,
-      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+    // Mede a altura real de cada seção
+    const secoes = await page.evaluate(() => {
+      const selectors = ['.section-hero-bg', '.section-rest-bg', '.section-conc-bg'];
+      return selectors.map(sel => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
+        return { height: Math.ceil(rect.height) };
+      }).filter(Boolean);
     });
+
+    // Gera um PDF por seção com altura exata
+    const { PDFDocument } = require('pdf-lib');
+    const pdfDoc = await PDFDocument.create();
+
+    for (let i = 0; i < secoes.length; i++) {
+      const sectionPage = await browser.newPage();
+      await sectionPage.setViewport({ width: 1200, height: secoes[i].height });
+      await sectionPage.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+      await sectionPage.evaluate(() => document.fonts.ready);
+
+      // Rola para a posição da seção
+      const sectionSelectors = ['.section-hero-bg', '.section-rest-bg', '.section-conc-bg'];
+      const offsetTop = await sectionPage.evaluate((sel) => {
+        const el = document.querySelector(sel);
+        return el ? Math.round(el.getBoundingClientRect().top + window.scrollY) : 0;
+      }, sectionSelectors[i]);
+
+      const sectionPdf = await sectionPage.pdf({
+        width: `1200px`,
+        height: `${secoes[i].height}px`,
+        printBackground: true,
+        margin: { top: 0, right: 0, bottom: 0, left: 0 },
+        clip: { x: 0, y: offsetTop, width: 1200, height: secoes[i].height }
+      });
+
+      await sectionPage.close();
+
+      const sectionDoc = await PDFDocument.load(sectionPdf);
+      const [copiedPage] = await pdfDoc.copyPages(sectionDoc, [0]);
+      pdfDoc.addPage(copiedPage);
+    }
 
     await browser.close();
     browser = null;
 
+    const pdfBytes = await pdfDoc.save();
     const nomeArquivo = (nome || 'diagnostico').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="ditto-diagnostico-${nomeArquivo}.pdf"`,
-      'Content-Length': pdfBuffer.length,
+      'Content-Length': pdfBytes.length,
     });
-    res.send(pdfBuffer);
+    res.send(Buffer.from(pdfBytes));
 
   } catch(e) {
     if (browser) { try { await browser.close(); } catch(_) {} }
