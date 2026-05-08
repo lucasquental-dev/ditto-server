@@ -4,17 +4,15 @@ const cors = require('cors');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 const MAPS_KEY = process.env.MAPS_KEY;
 const APIFY_KEY = process.env.APIFY_KEY;
 const GEMINI_KEY = process.env.GEMINI_KEY;
 
-// Cache em memória (válido enquanto o servidor estiver ativo)
 const cacheLayout = {};
 const cacheInstagram = {};
 
-// Retry automático para o Gemini — tenta até 4 vezes se retornar 503
 async function geminiComRetry(body, tentativas = 4) {
   for (let i = 0; i < tentativas; i++) {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
@@ -37,17 +35,12 @@ async function geminiComRetry(body, tentativas = 4) {
   }
 }
 
-// Extrai o JSON mais robusto — lida com raciocínio verbose antes do JSON
 function extrairJSON(text) {
   if (!text) return null;
-
-  // 1. Tenta bloco markdown ```json ... ```
   const mdMatch = text.match(/```(?:json)?([\s\S]*?)```/);
   if (mdMatch) {
     try { return JSON.parse(mdMatch[1].trim()); } catch(e) {}
   }
-
-  // 2. Percorre de trás para frente a partir do último } para encontrar o JSON real
   const lastBrace = text.lastIndexOf('}');
   if (lastBrace !== -1) {
     let depth = 0;
@@ -63,9 +56,57 @@ function extrairJSON(text) {
       try { return JSON.parse(text.substring(start, lastBrace + 1)); } catch(e) {}
     }
   }
-
   return null;
 }
+
+// ── ROTA PDF com Puppeteer ──
+app.post('/gerar-pdf', async (req, res) => {
+  let browser = null;
+  try {
+    const { html, nome } = req.body;
+    if (!html) return res.status(400).json({ erro: 'HTML não fornecido' });
+
+    const chromium = require('@sparticuz/chromium');
+    const puppeteer = require('puppeteer-core');
+
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: { width: 1200, height: 900 },
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
+
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+
+    // Aguarda fontes carregarem
+    await page.evaluate(() => document.fonts.ready);
+    await new Promise(r => setTimeout(r, 500));
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      landscape: true,
+      printBackground: true,
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+
+    await browser.close();
+    browser = null;
+
+    const nomeArquivo = (nome || 'diagnostico').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="ditto-diagnostico-${nomeArquivo}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+    res.send(pdfBuffer);
+
+  } catch(e) {
+    if (browser) { try { await browser.close(); } catch(_) {} }
+    console.error('Erro ao gerar PDF:', e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
 
 app.get('/maps/textsearch', async (req, res) => {
   try {
@@ -160,7 +201,6 @@ app.get('/buscar-instagram', async (req, res) => {
               if (!isPrivado && totalPosts > 0 && temRelacao) {
                 return res.json({ instagram: '@' + perfil.username });
               }
-              console.log('Instagram pelo domínio rejeitado:', username, '| privado:', isPrivado, '| posts:', totalPosts, '| relação:', temRelacao);
             }
           }
         }
@@ -273,41 +313,38 @@ DADOS OBJETIVOS DO PERFIL @${handle}:
 - Conta business: ${perfil.isBusinessAccount ? 'Sim' : 'Não'}
 - Frequência calculada pelo sistema: ${frequenciaTexto}
 - Dias desde último post: ${diasDesdeUltimoPost !== null ? diasDesdeUltimoPost + ' dias' : 'desconhecido'}
-- NOTA MÁXIMA PERMITIDA PELO SISTEMA: ${notaFrequenciaMaxima} (baseada em inatividade — você NÃO pode ultrapassar esse valor)
+- NOTA MÁXIMA PERMITIDA PELO SISTEMA: ${notaFrequenciaMaxima}
 
 Últimos posts analisados:
 ${JSON.stringify(resumoPosts, null, 2)}
 
-ESCALA DE AVALIAÇÃO OBRIGATÓRIA (dentro do teto acima):
-- 1-2: Perfil abandonado ou sem conteúdo relevante
-- 3-4: Perfil muito fraco — irregular, bio vazia, conteúdo sem estratégia
-- 5: Perfil mediano — existe mas sem diferencial claro
-- 6: Perfil razoável — frequência ok, conteúdo básico
-- 7-8: Perfil bom — frequência regular, conteúdo relevante, bio completa
-- 9-10: Perfil excelente — referência no segmento (EXTREMAMENTE raro, use apenas se todos os indicadores forem excepcionais)
-
-REGRA INVIOLÁVEL PARA OS ARRAYS: Cada item de "impacto_negocio", "principais_falhas" e "oportunidades" deve ter NO MÁXIMO 8 palavras.
+ESCALA DE AVALIAÇÃO OBRIGATÓRIA:
+- 1-2: Perfil abandonado
+- 3-4: Perfil muito fraco
+- 5: Perfil mediano
+- 6: Perfil razoável
+- 7-8: Perfil bom
+- 9-10: Perfil excelente (EXTREMAMENTE raro)
 
 REGRAS INVIOLÁVEIS:
-1. A nota final NÃO pode ser maior que ${notaFrequenciaMaxima}
+1. Nota NÃO pode ser maior que ${notaFrequenciaMaxima}
 2. Bio vazia ou sem CTA desconta 1 ponto
 3. Menos de 1.000 seguidores desconta 0.5 ponto
 4. Sem conta business desconta 0.5 ponto
-5. Legendas sem estratégia ou vazias descontam 1 ponto
-6. Seja específico: cite dados reais dos posts, não generalize
+5. Legendas sem estratégia descontam 1 ponto
 
 Retorne APENAS este JSON válido sem markdown:
 {
   "nota": número de 1 a ${notaFrequenciaMaxima},
   "seguidores": número,
-  "frequencia": "descrição precisa baseada nos dados reais acima",
+  "frequencia": "descrição precisa",
   "analise_bio": "análise objetiva da bio em 1 frase",
-  "analise_conteudo": "análise objetiva das legendas e conteúdo em 1 frase",
-  "resumo": "diagnóstico honesto do perfil em até 100 caracteres",
-  "impacto_negocio": ["tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras"],
-  "principais_falhas": ["tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras"],
-  "oportunidades": ["tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras"],
-  "conclusao": "em até 70 palavras: seja específico sobre o maior problema desse perfil."
+  "analise_conteudo": "análise objetiva das legendas em 1 frase",
+  "resumo": "diagnóstico honesto em até 100 caracteres",
+  "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "conclusao": "em até 70 palavras: maior problema do perfil, específico e construtivo."
 }`
         }]
       }]
@@ -317,10 +354,10 @@ Retorne APENAS este JSON válido sem markdown:
     const textPart = parts.find(p => p.text && !p.thought);
     const text = textPart?.text || '';
 
-    if (!text) return res.json({ erro: 'Gemini não retornou análise', dados: geminiData });
+    if (!text) return res.json({ erro: 'Gemini não retornou análise' });
 
     const resultado = extrairJSON(text);
-    if (!resultado) return res.json({ erro: 'Erro ao parsear', texto: text });
+    if (!resultado) return res.json({ erro: 'Erro ao parsear' });
 
     resultado.nota = Math.min(resultado.nota, notaFrequenciaMaxima);
     resultado.seguidores = perfil.seguidores;
@@ -339,7 +376,6 @@ app.get('/screenshot', async (req, res) => {
   try {
     const { site } = req.query;
     if (!site) return res.json({ url: null });
-
     const runRes = await fetch(`https://api.apify.com/v2/acts/apify~screenshot-url/runs?token=${APIFY_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -349,7 +385,6 @@ app.get('/screenshot', async (req, res) => {
     const runId = runData.data?.id;
     const kvStoreId = runData.data?.defaultKeyValueStoreId;
     if (!runId) return res.json({ url: null });
-
     let status = 'RUNNING';
     let tentativas = 0;
     while (status === 'RUNNING' && tentativas < 20) {
@@ -360,13 +395,11 @@ app.get('/screenshot', async (req, res) => {
       tentativas++;
     }
     if (status !== 'SUCCEEDED') return res.json({ url: null });
-
     const keysRes = await fetch(`https://api.apify.com/v2/key-value-stores/${kvStoreId}/keys?token=${APIFY_KEY}`);
     const keysData = await keysRes.json();
     const keys = keysData.data?.items || [];
     const imgKey = keys.find(k => k.key.startsWith('screenshot_'));
     if (!imgKey) return res.json({ url: null });
-
     res.json({ url: `https://api.apify.com/v2/key-value-stores/${kvStoreId}/records/${encodeURIComponent(imgKey.key)}?token=${APIFY_KEY}` });
   } catch(e) { res.json({ url: null }); }
 });
@@ -397,7 +430,6 @@ app.get('/analisar-layout', async (req, res) => {
         timeout: 10000
       });
       const htmlRaw = await htmlRes.text();
-
       const metaTitle = (htmlRaw.match(/<title[^>]*>(.*?)<\/title>/i) || ['',''])[1];
       const metaDesc = (htmlRaw.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)/i) || ['',''])[1];
       const h1s = [...htmlRaw.matchAll(/<h1[^>]*>(.*?)<\/h1>/gi)].map(m => m[1].replace(/<[^>]+>/g,'').trim()).slice(0,3);
@@ -409,17 +441,16 @@ app.get('/analisar-layout', async (req, res) => {
                        htmlRaw.includes('wordpress') ? 'WordPress' :
                        htmlRaw.includes('lovable') ? 'Lovable (IA)' :
                        htmlRaw.includes('webflow') ? 'Webflow' : 'Site próprio';
-
       htmlResumo = `
-DADOS TÉCNICOS (use apenas para avaliar SEO e plataforma — NÃO use para elevar a nota do layout):
+DADOS TÉCNICOS:
 - Plataforma: ${platform}
-- Título da página: ${metaTitle || 'Não definido — problema de SEO'}
-- Meta description: ${metaDesc || 'Não definida — problema de SEO'}
-- Títulos H1: ${h1s.join(' | ') || 'Nenhum encontrado — problema de SEO'}
-- Títulos H2: ${h2s.join(' | ') || 'Nenhum encontrado'}
-ATENÇÃO: Avaliações de clientes, anos de experiência e outros dados do negócio NÃO devem elevar a nota — são méritos da empresa, não do site.`;
+- Título: ${metaTitle || 'Não definido'}
+- Meta description: ${metaDesc || 'Não definida'}
+- H1s: ${h1s.join(' | ') || 'Nenhum encontrado'}
+- H2s: ${h2s.join(' | ') || 'Nenhum encontrado'}
+ATENÇÃO: Dados do negócio NÃO devem elevar a nota.`;
     } catch(e) {
-      htmlResumo = 'DADOS TÉCNICOS: Não foi possível acessar o HTML do site.';
+      htmlResumo = 'DADOS TÉCNICOS: Não foi possível acessar o HTML.';
     }
 
     const geminiData = await geminiComRetry({
@@ -429,51 +460,43 @@ ATENÇÃO: Avaliações de clientes, anos de experiência e outros dados do neg�
         parts: [{
           text: `Acesse e analise o site: ${site}
 
-INSTRUÇÃO CRÍTICA: Retorne APENAS o JSON abaixo, sem nenhum texto antes ou depois, sem raciocínio, sem explicações, sem markdown.
+INSTRUÇÃO CRÍTICA: Retorne APENAS o JSON, sem texto antes ou depois, sem markdown.
 
 ${htmlResumo}
 
-REGRA CRÍTICA SOBRE OS DADOS TÉCNICOS:
-- Plataforma, título, meta description e estrutura de H1/H2: USE para avaliar SEO e qualidade técnica
-- Dados do NEGÓCIO como avaliações de clientes, anos de experiência, número de seguradoras: IGNORE para definir a nota — esses são méritos da empresa, não do site
-- A nota deve refletir a QUALIDADE VISUAL E DE DESIGN: identidade visual, hierarquia, modernidade, primeira impressão
+Você é um consultor sênior de marketing digital avaliando sites de empresas brasileiras.
 
-Você é um consultor sênior de marketing digital avaliando sites de empresas brasileiras. Sua função é dar uma nota JUSTA e PRECISA — nem generosa nem punitiva demais.
+ESCALA:
+RUIM (1-4): Sem identidade visual, templates genéricos, primeira impressão negativa.
+MÉDIO (5-6): Funcional mas sem diferencial claro.
+BOM (7-8): Identidade forte, hierarquia clara, profissional.
+EXCELENTE (9-10): Referência absoluta. MUITO raro.
 
-ESCALA DE REFERÊNCIA:
-RUIM (1-4): Sites sem identidade visual própria, templates genéricos sem personalização, stock photos sem curadoria, layout confuso ou datado, primeira impressão negativa.
-MÉDIO (5-6): Tem identidade visual básica e é funcional, mas falta diferencial claro. Visual ok mas sem personalidade marcante.
-BOM (7-8): Identidade visual forte e coesa, hierarquia clara, CTAs evidentes, transmite profissionalismo imediatamente.
-EXCELENTE (9-10): Referência absoluta no segmento. MUITO raro.
+CRITÉRIOS:
+1. Identidade visual — marca própria ou template genérico?
+2. Hierarquia — fácil de ler e navegar?
+3. Imagens — curadas e coerentes?
+4. Primeira impressão — 3 segundos transmite profissionalismo?
+5. CTA — claro o que o visitante deve fazer?
 
-CRITÉRIOS QUE MAIS PESAM:
-1. Identidade visual — tem marca própria ou parece template genérico?
-2. Hierarquia e usabilidade — é fácil de ler e navegar?
-3. Imagens — bem curadas e coerentes com o negócio?
-4. Primeira impressão — nos primeiros 3 segundos transmite profissionalismo?
-5. CTA — fica claro o que o visitante deve fazer?
+REGRAS:
+- Paleta escura NÃO penaliza
+- Foto real da equipe valoriza muito
+- Números zerados (0%, R$0): IGNORE
+- oncorretor.com.br: -1 ponto nas falhas
+- Cada tópico: NO MÁXIMO 8 palavras
 
-ATENÇÃO:
-- Paleta escura NÃO é penalização
-- Foto real da equipe = valoriza muito
-- Muito texto sem hierarquia = penaliza
-- NUNCA reporte números zerados como "0%", "0 clientes", "R$ 0" — são dinâmicos, ignore
-- NUNCA diga que vídeo está quebrado — você lê HTML estático, ignore elementos de vídeo
-- Se identificar oncorretor.com.br: -1 ponto e mencione nas falhas
-
-REGRA DOS TÓPICOS: Cada item deve ter NO MÁXIMO 8 palavras.
-
-Retorne APENAS este JSON válido sem markdown:
+Retorne APENAS este JSON:
 {
-  "nota": número de 1 a 10,
-  "nota_seo": número de 1 a 10,
+  "nota": número 1-10,
+  "nota_seo": número 1-10,
   "transmite_confianca": true ou false,
-  "resumo": "primeira impressão honesta em até 100 caracteres",
-  "analise_nota": "descreva de forma específica o que você viu — cite cores, fontes, imagens, layout, botões concretos",
-  "impacto_negocio": ["tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras"],
-  "principais_falhas": ["tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras"],
-  "oportunidades": ["tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras", "tópico curto, máx 8 palavras"],
-  "conclusao": "em até 70 palavras: seja específico sobre o maior problema visual ou de usabilidade. Cite algo concreto. Tom respeitoso e construtivo."
+  "resumo": "primeira impressão em até 100 caracteres",
+  "analise_nota": "elementos concretos: cores, fontes, imagens, layout",
+  "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "conclusao": "até 70 palavras: maior problema visual concreto, tom construtivo."
 }`
         }]
       }]
