@@ -62,29 +62,8 @@ function extrairJSON(text) {
 app.get('/maps/textsearch', async (req, res) => {
   try {
     const params = new URLSearchParams({...req.query, key: MAPS_KEY});
-    const primeira = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`);
-    const dados1 = await primeira.json();
-    let todosResultados = dados1.results || [];
-
-    // Paginação — busca até mais 2 páginas (total até 60 resultados)
-    let nextToken = dados1.next_page_token;
-    let pagina = 1;
-    while (nextToken && pagina < 3) {
-      // Google exige espera antes de usar o next_page_token
-      await new Promise(r => setTimeout(r, 2500));
-      const proxParams = new URLSearchParams({ pagetoken: nextToken, key: MAPS_KEY, language: 'pt-BR' });
-      const proxRes = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${proxParams}`);
-      const proxDados = await proxRes.json();
-      console.log('Paginação página ' + (pagina+1) + ': status=' + proxDados.status + ' resultados=' + (proxDados.results?.length || 0));
-      if (proxDados.results && proxDados.results.length > 0) {
-        todosResultados = todosResultados.concat(proxDados.results);
-      }
-      nextToken = proxDados.next_page_token;
-      pagina++;
-    }
-    console.log('Total resultados após paginação:', todosResultados.length);
-
-    res.json({ results: todosResultados, status: dados1.status });
+    const response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`);
+    res.json(await response.json());
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
