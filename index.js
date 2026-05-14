@@ -337,13 +337,15 @@ app.get('/analisar-layout', async (req, res) => {
 
     // Chama o Gemini com url_context para ele VER o site de verdade
     // + dados técnicos como contexto complementar
-    const prompt = `Você é um consultor experiente de marketing digital avaliando o site: ${site}
+    const prompt = `Você é um diretor de arte sênior e especialista em UX/UI com 20 anos de experiência, avaliando o site: ${site}
 
-Acesse o site pelo link acima e avalie o que você realmente vê — design, identidade visual, conteúdo, experiência do visitante.
+Acesse o site pelo link acima e analise o que você realmente vê — design, identidade visual, hierarquia visual, qualidade das imagens, experiência do visitante, clareza da navegação.
 
 ${dadosTecnicos}
 
-Imagine que você é um cliente em potencial visitando este site pela primeira vez. Use seu bom senso para avaliar se este site transmite profissionalismo e credibilidade. Dê uma nota de 1 a 10 que reflita honestamente a qualidade real do site.
+Seja 100% honesto. Não elogie para agradar. Se o site é fraco, diga isso claramente. Se é bom, reconheça. Sua avaliação vai ser usada por uma agência de marketing para ajudar esse negócio a crescer — então precisa ser precisa e verdadeira.
+
+Avalie como um profissional experiente que respeita o prospect mas não esconde os problemas reais. Tom construtivo, não agressivo.
 
 Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
 {
@@ -355,7 +357,7 @@ Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
   "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
   "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
   "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
-  "conclusao": "até 120 palavras, linguagem simples e direta."
+  "conclusao": "até 120 palavras, linguagem simples e direta, tom construtivo."
 }`;
 
     const geminiData = await geminiComRetry({
