@@ -255,7 +255,7 @@ app.get('/analisar-instagram', async (req, res) => {
     }));
     const geminiData = await geminiComRetry({
       generationConfig: { temperature: 0 },
-      contents: [{ parts: [{ text: `Você é um consultor experiente de marketing digital avaliando o perfil do Instagram @${handle} para uma agência brasileira.\n\nDADOS DO PERFIL:\n- Nome: ${perfil.nome}\n- Bio: ${perfil.bio || 'Não preenchida'}\n- Seguidores: ${perfil.seguidores}\n- Total de posts: ${perfil.totalPosts}\n- Conta business: ${perfil.isBusinessAccount ? 'Sim' : 'Não'}\n- Frequência: ${frequenciaTexto}\n- Dias desde último post: ${diasDesdeUltimoPost !== null ? diasDesdeUltimoPost + ' dias' : 'desconhecido'}\n- NOTA MÁXIMA PERMITIDA (baseada na inatividade do perfil): ${notaFrequenciaMaxima}\n\nÚltimos posts:\n${JSON.stringify(resumoPosts, null, 2)}\n\nAvalie com bom senso e equilíbrio, como um consultor humano faria:\n- 3 posts por semana é uma boa frequência para pequenas empresas — não penalize isso\n- Engajamento deve ser avaliado proporcionalmente ao número de seguidores\n- Bio funcional e informativa já tem valor, mesmo sem ser perfeita\n- Reconheça o que está funcionando antes de apontar falhas\n- A nota máxima permitida já penaliza perfis inativos — respeite esse limite\n- Cada item das listas: NO MÁXIMO 8 palavras\n\nESCALA DE REFERÊNCIA:\n1-2: Perfil abandonado ou inexistente\n3-4: Perfil muito fraco, sem estratégia\n5-6: Perfil razoável, cumpre o básico\n7-8: Perfil consistente e bem posicionado\n9-10: Referência do setor — muito raro\n\nA conclusao deve ser honesta e equilibrada: reconheça pontos fortes, aponte o que pode melhorar. Linguagem simples, sem jargão. Máximo 120 palavras.\n\nRetorne APENAS este JSON válido sem markdown:\n{\n  "nota": número de 1 a ${notaFrequenciaMaxima},\n  "seguidores": número,\n  "frequencia": "descrição precisa",\n  "analise_bio": "análise objetiva da bio em 1 frase",\n  "analise_conteudo": "análise objetiva das legendas em 1 frase",\n  "resumo": "diagnóstico honesto em até 100 caracteres",\n  "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "conclusao": "até 120 palavras: avaliação honesta e equilibrada, linguagem simples e direta."\n}` }] }]
+      contents: [{ parts: [{ text: `Você é um consultor experiente de marketing digital avaliando o perfil do Instagram @${handle} para uma agência brasileira.\n\nDADOS DO PERFIL:\n- Nome: ${perfil.nome}\n- Bio: ${perfil.bio || 'Não preenchida'}\n- Seguidores: ${perfil.seguidores}\n- Total de posts: ${perfil.totalPosts}\n- Conta business: ${perfil.isBusinessAccount ? 'Sim' : 'Não'}\n- Frequência: ${frequenciaTexto}\n- Dias desde último post: ${diasDesdeUltimoPost !== null ? diasDesdeUltimoPost + ' dias' : 'desconhecido'}\n- NOTA MÁXIMA PERMITIDA (baseada na inatividade do perfil): ${notaFrequenciaMaxima}\n\nÚltimos posts:\n${JSON.stringify(resumoPosts, null, 2)}\n\nAvalie com bom senso e equilíbrio, como um consultor humano faria. Use seu julgamento natural para dar uma nota de 1 a ${notaFrequenciaMaxima} que reflita honestamente a qualidade real do perfil. A nota máxima já considera a inatividade do perfil — respeite esse limite.\n\nA conclusao deve ser honesta e equilibrada: reconheça pontos fortes, aponte o que pode melhorar. Linguagem simples, sem jargão. Máximo 120 palavras.\n\nRetorne APENAS este JSON válido sem markdown:\n{\n  "nota": número de 1 a ${notaFrequenciaMaxima},\n  "seguidores": número,\n  "frequencia": "descrição precisa",\n  "analise_bio": "análise objetiva da bio em 1 frase",\n  "analise_conteudo": "análise objetiva das legendas em 1 frase",\n  "resumo": "diagnóstico honesto em até 100 caracteres",\n  "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "conclusao": "até 120 palavras: avaliação honesta e equilibrada, linguagem simples e direta."\n}` }] }]
     });
     const parts = geminiData.candidates?.[0]?.content?.parts || [];
     const textPart = parts.find(p => p.text && !p.thought);
@@ -289,7 +289,10 @@ app.get('/analisar-layout', async (req, res) => {
       console.log('Cache hit layout:', site);
       return res.json(cacheLayout[site]);
     }
-    let htmlResumo = '';
+
+    // Extrai dados técnicos do HTML para complementar a análise visual
+    let dadosTecnicos = '';
+    let siteInacessivel = false;
     try {
       const htmlRes = await fetch(site, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
@@ -306,28 +309,70 @@ app.get('/analisar-layout', async (req, res) => {
                        htmlRaw.includes('elementor') ? 'WordPress/Elementor' :
                        htmlRaw.includes('wordpress') ? 'WordPress' :
                        htmlRaw.includes('lovable') ? 'Lovable (IA)' :
-                       htmlRaw.includes('webflow') ? 'Webflow' : 'Site próprio';
-      const htmlTexto = htmlRaw
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[\s\S]*?<\/style>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .substring(0, 15000);
-      htmlResumo = `\nDADOS TÉCNICOS:\n- Plataforma: ${platform}\n- Título: ${metaTitle || 'Não definido'}\n- Meta description: ${metaDesc || 'Não definida'}\n- H1s: ${h1s.join(' | ') || 'Nenhum encontrado'}\n- H2s: ${h2s.join(' | ') || 'Nenhum encontrado'}\n\nCONTEÚDO DO SITE (texto extraído):\n${htmlTexto}\n\nATENÇÃO: Dados do negócio NÃO devem elevar a nota.`;
+                       htmlRaw.includes('webflow') ? 'Webflow' :
+                       htmlRaw.includes('livance') ? 'Livance (página de agendamento genérica — sem identidade visual própria, penalize -2 pontos)' :
+                       'Site próprio';
+      dadosTecnicos = `DADOS TÉCNICOS DO SITE:\n- Plataforma: ${platform}\n- Título: ${metaTitle || 'Não definido'}\n- Meta description: ${metaDesc || 'Não definida'}\n- H1s: ${h1s.join(' | ') || 'Nenhum encontrado'}\n- H2s: ${h2s.join(' | ') || 'Nenhum encontrado'}`;
     } catch(e) {
-      htmlResumo = 'DADOS TÉCNICOS: Site inacessível — não foi possível carregar o HTML. O site está fora do ar ou bloqueando acesso. Isso é um problema GRAVÍSSIMO. Nota máxima permitida: 2. Mencione obrigatoriamente nas falhas que o site está inacessível.';
+      siteInacessivel = true;
     }
+
+    if (siteInacessivel) {
+      // Site fora do ar — não chama o Gemini, retorna direto
+      const resultado = {
+        nota: 1,
+        nota_seo: 1,
+        transmite_confianca: false,
+        resumo: 'Site inacessível — fora do ar ou bloqueando acesso.',
+        analise_nota: 'Não foi possível acessar o site. Isso é um problema gravíssimo para qualquer negócio.',
+        impacto_negocio: ['Zero visibilidade online', 'Perda total de potenciais clientes', 'Danos severos à credibilidade'],
+        principais_falhas: ['Site completamente inacessível', 'Impossível avaliar conteúdo ou design', 'Presença digital inexistente'],
+        oportunidades: ['Verificar e restaurar o servidor', 'Garantir hospedagem confiável', 'Monitorar disponibilidade do site'],
+        conclusao: 'O site está fora do ar ou bloqueando qualquer acesso externo. Isso significa que nenhum cliente potencial consegue encontrá-lo online. É o problema mais grave que um negócio pode ter na presença digital — equivale a não existir na internet.',
+        screenshot_url: null
+      };
+      cacheLayout[site] = resultado;
+      return res.json(resultado);
+    }
+
+    // Chama o Gemini com url_context para ele VER o site de verdade
+    // + dados técnicos como contexto complementar
+    const prompt = `Você é um consultor experiente de marketing digital avaliando o site: ${site}
+
+Acesse o site pelo link acima e avalie o que você realmente vê — design, identidade visual, conteúdo, experiência do visitante.
+
+${dadosTecnicos}
+
+Imagine que você é um cliente em potencial visitando este site pela primeira vez. Use seu bom senso para avaliar se este site transmite profissionalismo e credibilidade. Dê uma nota de 1 a 10 que reflita honestamente a qualidade real do site.
+
+Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
+{
+  "nota": número 1-10,
+  "nota_seo": número 1-10,
+  "transmite_confianca": true ou false,
+  "resumo": "primeira impressão honesta em até 100 caracteres",
+  "analise_nota": "o que o design e conteúdo revelam sobre este site",
+  "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
+  "conclusao": "até 120 palavras, linguagem simples e direta."
+}`;
+
     const geminiData = await geminiComRetry({
-      generationConfig: { temperature: 0, maxOutputTokens: 8192 },
-      contents: [{ parts: [{ text: `Você é um consultor experiente de marketing digital avaliando o site: ${site}\n\n${htmlResumo}\n\nINSTRUÇÃO CRÍTICA: Retorne APENAS o JSON, sem texto antes ou depois, sem markdown.\n\nImagine que você é um cliente em potencial visitando este site pela primeira vez. Com base nos dados técnicos e no conteúdo extraído, avalie a experiência que este site transmite.\n\nESCALA DE REFERÊNCIA:\n1-2: Site inacessível ou completamente quebrado\n3-4: Site muito fraco, confuso ou sem identidade\n5-6: Site funcional e razoável, cumpre o papel básico\n7-8: Site profissional, com identidade clara e boa experiência\n9-10: Referência do setor, difícil de superar\n\nAVALIE com bom senso:\n- O conteúdo é claro e específico, ou genérico demais?\n- A estrutura de navegação faz sentido para o visitante?\n- O site transmite confiança e profissionalismo?\n- Há chamadas para ação claras?\n- O SEO básico está presente (título, descrição, H1)?\n- Números zerados (0%, R$0): IGNORE\n- Cada item das listas: NO MÁXIMO 8 palavras, específico sobre ESTE site\n\nA conclusao deve ser honesta e equilibrada: reconheça o que funciona bem e aponte o que pode melhorar. Se o site é genuinamente bom, diga isso. Se tem problemas sérios, aponte de forma construtiva. Linguagem simples, sem jargão técnico. Máximo 60 palavras.\n\nRETORNE APENAS este JSON:\n{\n  "nota": número 1-10,\n  "nota_seo": número 1-10,\n  "transmite_confianca": true ou false,\n  "resumo": "primeira impressão honesta em até 100 caracteres",\n  "analise_nota": "o que o conteúdo e estrutura revelam sobre este site",\n  "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],\n  "conclusao": "até 120 palavras: avaliação honesta e equilibrada, destacando o que funciona bem e o que precisa melhorar, em linguagem simples e direta."\n}` }] }]
+      generationConfig: { temperature: 0, maxOutputTokens: 16384 },
+      tools: [{ url_context: {} }],
+      contents: [{ parts: [{ text: prompt }] }]
     });
+
     const parts = geminiData.candidates?.[0]?.content?.parts || [];
     const textPart = parts.find(p => p.text && !p.thought);
     const text = textPart?.text || '';
+
     if (!text) return res.json({ erro: 'Gemini não retornou texto', dados: geminiData });
+
     const resultado = extrairJSON(text);
     if (!resultado) return res.json({ erro: 'Erro ao parsear', texto: text.substring(0, 500) });
+
     resultado.screenshot_url = null;
     resultado.transmite_confianca = (resultado.nota >= 6);
     cacheLayout[site] = resultado;
