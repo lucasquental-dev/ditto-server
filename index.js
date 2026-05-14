@@ -71,8 +71,8 @@ app.get('/maps/textsearch', async (req, res) => {
     let pagina = 1;
     while (nextToken && pagina < 3) {
       // Google exige espera antes de usar o next_page_token
-      await new Promise(r => setTimeout(r, 1800));
-      const proxParams = new URLSearchParams({ pagetoken: nextToken, key: MAPS_KEY });
+      await new Promise(r => setTimeout(r, 2500));
+      const proxParams = new URLSearchParams({ pagetoken: nextToken, key: MAPS_KEY, language: 'pt-BR' });
       const proxRes = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${proxParams}`);
       const proxDados = await proxRes.json();
       console.log('Paginação página ' + (pagina+1) + ': status=' + proxDados.status + ' resultados=' + (proxDados.results?.length || 0));
