@@ -13,9 +13,9 @@ const GEMINI_KEY = process.env.GEMINI_KEY;
 const cacheLayout = {};
 const cacheInstagram = {};
 
-async function geminiComRetry(body, tentativas = 4) {
+async function geminiComRetry(body, tentativas = 4, modelo = 'gemini-2.5-flash') {
   for (let i = 0; i < tentativas; i++) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${GEMINI_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -364,7 +364,7 @@ Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
       generationConfig: { temperature: 0, maxOutputTokens: 16384 },
       tools: [{ url_context: {} }],
       contents: [{ parts: [{ text: prompt }] }]
-    });
+    }, 4, 'gemini-2.5-pro');
 
     const parts = geminiData.candidates?.[0]?.content?.parts || [];
     const textPart = parts.find(p => p.text && !p.thought);
