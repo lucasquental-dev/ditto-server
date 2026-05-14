@@ -62,8 +62,25 @@ function extrairJSON(text) {
 app.get('/maps/textsearch', async (req, res) => {
   try {
     const params = new URLSearchParams({...req.query, key: MAPS_KEY});
-    const response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`);
-    res.json(await response.json());
+    const primeira = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`);
+    const dados1 = await primeira.json();
+    let todos = dados1.results || [];
+
+    let nextToken = dados1.next_page_token;
+    let pagina = 1;
+    while (nextToken && pagina < 3) {
+      await new Promise(r => setTimeout(r, 2500));
+      const proxRes = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?pagetoken=${encodeURIComponent(nextToken)}&key=${MAPS_KEY}`);
+      const proxDados = await proxRes.json();
+      console.log('Pagina ' + (pagina+1) + ': status=' + proxDados.status + ' n=' + (proxDados.results?.length || 0));
+      if (proxDados.results && proxDados.results.length > 0) {
+        todos = todos.concat(proxDados.results);
+      }
+      nextToken = proxDados.next_page_token;
+      pagina++;
+    }
+    console.log('Total:', todos.length);
+    res.json({ results: todos, status: dados1.status, next_page_token: dados1.next_page_token });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
