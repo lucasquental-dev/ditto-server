@@ -342,9 +342,9 @@ Acesse o site pelo link acima e analise o que você realmente vê — design, id
 
 ${dadosTecnicos}
 
-Seja 100% honesto. Não elogie para agradar. Se o site é fraco, diga isso claramente. Se é bom, reconheça. Sua avaliação vai ser usada por uma agência de marketing para ajudar esse negócio a crescer — então precisa ser precisa e verdadeira.
+Seja justo e equilibrado. Se o site é bom, reconheça isso claramente. Se tem problemas, aponte sem exagerar. Sua avaliação vai ser usada por uma agência de marketing para ajudar esse negócio a crescer — então precisa refletir a realidade, sem ser nem condescendente nem excessivamente crítico.
 
-Avalie como um profissional experiente que respeita o prospect mas não esconde os problemas reais. Tom construtivo, não agressivo.
+Um site pode ser bom mesmo sendo feito em Wix ou Elementor — o que importa é a execução. Um site pode ser ruim mesmo sendo feito em WordPress customizado. Julgue pelo resultado visual e pela experiência, não pela ferramenta.
 
 Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
 {
