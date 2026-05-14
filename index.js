@@ -303,14 +303,13 @@ app.get('/analisar-layout', async (req, res) => {
       const metaDesc = (htmlRaw.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)/i) || ['',''])[1];
       const h1s = [...htmlRaw.matchAll(/<h1[^>]*>(.*?)<\/h1>/gi)].map(m => m[1].replace(/<[^>]+>/g,'').trim()).slice(0,3);
       const h2s = [...htmlRaw.matchAll(/<h2[^>]*>(.*?)<\/h2>/gi)].map(m => m[1].replace(/<[^>]+>/g,'').trim()).slice(0,5);
-      const platform = htmlRaw.includes('oncorretor.com.br') ? 'oncorretor.com.br (sistema Porto Seguro — penalize -1 ponto e mencione nas falhas)' :
-                       htmlRaw.includes('builderall') ? 'Builderall (sistema genérico)' :
+      const platform = htmlRaw.includes('builderall') ? 'Builderall (sistema genérico)' :
                        htmlRaw.includes('wix.com') || htmlRaw.includes('wixstatic') ? 'Wix' :
                        htmlRaw.includes('elementor') ? 'WordPress/Elementor' :
                        htmlRaw.includes('wordpress') ? 'WordPress' :
                        htmlRaw.includes('lovable') ? 'Lovable (IA)' :
                        htmlRaw.includes('webflow') ? 'Webflow' :
-                       htmlRaw.includes('livance') ? 'Livance (página de agendamento genérica — sem identidade visual própria, penalize -2 pontos)' :
+                       htmlRaw.includes('livance') ? 'Livance (plataforma de agendamento)' :
                        'Site próprio';
       dadosTecnicos = `DADOS TÉCNICOS DO SITE:\n- Plataforma: ${platform}\n- Título: ${metaTitle || 'Não definido'}\n- Meta description: ${metaDesc || 'Não definida'}\n- H1s: ${h1s.join(' | ') || 'Nenhum encontrado'}\n- H2s: ${h2s.join(' | ') || 'Nenhum encontrado'}`;
     } catch(e) {
@@ -376,7 +375,6 @@ Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
     if (!resultado) return res.json({ erro: 'Erro ao parsear', texto: text.substring(0, 500) });
 
     resultado.screenshot_url = null;
-    resultado.transmite_confianca = (resultado.nota >= 6);
     cacheLayout[site] = resultado;
     res.json(resultado);
   } catch(e) { res.json({ erro: e.message }); }
