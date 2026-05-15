@@ -342,9 +342,9 @@ Acesse o site pelo link acima e analise o que você realmente vê — design, id
 
 ${dadosTecnicos}
 
-Seja justo e equilibrado. Se o site é bom, reconheça isso claramente. Se tem problemas, aponte sem exagerar. Sua avaliação vai ser usada por uma agência de marketing para ajudar esse negócio a crescer — então precisa refletir a realidade, sem ser nem condescendente nem excessivamente crítico.
+Seja justo e equilibrado. Se o site é bom, reconheça isso claramente. Se tem problemas, aponte de forma construtiva — como um consultor que quer ajudar o negócio a crescer, não como alguém que está criticando o trabalho alheio. Use linguagem profissional e respeitosa, mesmo quando a nota for baixa.
 
-Um site pode ser bom mesmo sendo feito em Wix ou Elementor — o que importa é a execução. Um site pode ser ruim mesmo sendo feito em WordPress customizado. Julgue pelo resultado visual e pela experiência, não pela ferramenta.
+Um site pode ser bom mesmo sendo feito em Wix ou Elementor — o que importa é a execução. Julgue pelo resultado visual e pela experiência, não pela ferramenta.
 
 Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
 {
@@ -356,7 +356,7 @@ Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
   "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
   "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
   "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
-  "conclusao": "até 120 palavras, linguagem simples e direta, tom construtivo."
+  "conclusao": "até 120 palavras, linguagem simples e direta, tom respeitoso e construtivo."
 }`;
 
     const geminiData = await geminiComRetry({
