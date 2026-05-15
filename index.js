@@ -342,9 +342,16 @@ Acesse o site pelo link acima e analise o que você realmente vê — design, id
 
 ${dadosTecnicos}
 
-Seja justo e equilibrado. Se o site é bom, reconheça isso claramente. Se tem problemas, aponte de forma construtiva — como um consultor que quer ajudar o negócio a crescer, não como alguém que está criticando o trabalho alheio. Use linguagem profissional e respeitosa, mesmo quando a nota for baixa.
+Seja justo e equilibrado. Se o site é bom, reconheça isso claramente. Se tem problemas, aponte de forma construtiva — como um consultor que quer ajudar o negócio a crescer. Use linguagem profissional e respeitosa, mesmo quando a nota for baixa.
 
 Um site pode ser bom mesmo sendo feito em Wix ou Elementor — o que importa é a execução. Julgue pelo resultado visual e pela experiência, não pela ferramenta.
+
+CRITÉRIOS PARA A NOTA PRINCIPAL:
+A pergunta central é: quando um visitante entra nesse site, ele sente confiança e vontade de entrar em contato?
+- Experiência visual, identidade da marca e conteúdo: peso 70%
+- Aspectos técnicos como SEO, H1, meta description: peso 30%
+
+Problemas técnicos como H1 ausente afetam principalmente a nota_seo. Eles influenciam a nota principal, mas com peso menor — não derrubam um site visualmente forte de 8 para 5.
 
 Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
 {
