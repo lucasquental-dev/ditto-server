@@ -313,7 +313,7 @@ app.get('/analisar-layout', async (req, res) => {
                        htmlRaw.includes('webflow') ? 'Webflow' :
                        htmlRaw.includes('livance') ? 'Livance (plataforma de agendamento)' :
                        'Site próprio';
-      dadosTecnicos = `DADOS TÉCNICOS DO SITE:\n- Plataforma: ${platform}\n- Título: ${metaTitle || 'Não definido'}\n- Meta description: ${metaDesc || 'Não definida'}\n- H1s: ${h1s.join(' | ') || 'Nenhum encontrado'}\n- H2s: ${h2s.join(' | ') || 'Nenhum encontrado'}`;
+      dadosTecnicos = `DADOS TÉCNICOS DO SITE:\n- Título: ${metaTitle || 'Não definido'}\n- Meta description: ${metaDesc || 'Não definida'}\n- H1s: ${h1s.join(' | ') || 'Nenhum encontrado'}\n- H2s: ${h2s.join(' | ') || 'Nenhum encontrado'}`;
     } catch(e) {
       siteInacessivel = true;
     }
