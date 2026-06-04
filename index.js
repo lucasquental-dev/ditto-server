@@ -15,9 +15,17 @@ const cacheInstagram = {};
 
 async function geminiComRetry(body, tentativas = 4, modelo = 'gemini-2.5-flash') {
   for (let i = 0; i < tentativas; i++) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${GEMINI_KEY}`, {
+    // Suporta tanto chaves AIza (query param) quanto AQ. (Bearer token)
+    const isBearer = GEMINI_KEY && GEMINI_KEY.startsWith('AQ.');
+    const url = isBearer
+      ? `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`
+      : `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${GEMINI_KEY}`;
+    const headers = { 'Content-Type': 'application/json' };
+    if (isBearer) headers['Authorization'] = `Bearer ${GEMINI_KEY}`;
+
+    const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(body)
     });
     const data = await res.json();
@@ -290,7 +298,6 @@ app.get('/analisar-layout', async (req, res) => {
       return res.json(cacheLayout[site]);
     }
 
-    // Extrai dados técnicos do HTML para complementar a análise visual
     let dadosTecnicos = '';
     let siteInacessivel = false;
     try {
@@ -317,7 +324,6 @@ app.get('/analisar-layout', async (req, res) => {
     }
 
     if (siteInacessivel) {
-      // Site fora do ar — não chama o Gemini, retorna direto
       const resultado = {
         nota: 1,
         nota_seo: 1,
@@ -334,8 +340,6 @@ app.get('/analisar-layout', async (req, res) => {
       return res.json(resultado);
     }
 
-    // Chama o Gemini com url_context para ele VER o site de verdade
-    // + dados técnicos como contexto complementar
     const prompt = `Você é um diretor de arte sênior e especialista em UX/UI com 20 anos de experiência, avaliando o site: ${site}
 
 Acesse o site pelo link acima e analise o que você realmente vê — design, identidade visual, hierarquia visual, qualidade das imagens, experiência do visitante, clareza da navegação.
