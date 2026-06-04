@@ -15,9 +15,8 @@ const cacheInstagram = {};
 
 async function geminiComRetry(body, tentativas = 4, modelo = 'gemini-2.5-flash') {
   for (let i = 0; i < tentativas; i++) {
-    // Usa x-goog-api-key header — funciona com AIza e AQ.
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
-    const headers = { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY };
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${GEMINI_KEY}`;
+    const headers = { 'Content-Type': 'application/json' };
 
     const res = await fetch(url, {
       method: 'POST',
