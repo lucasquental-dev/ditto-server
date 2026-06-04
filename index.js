@@ -352,6 +352,8 @@ A pergunta central é: quando um visitante entra nesse site, ele sente confianç
 
 Problemas técnicos como H1 ausente afetam principalmente a nota_seo. Eles influenciam a nota principal, mas com peso menor — não derrubam um site visualmente forte de 8 para 5.
 
+IMPORTANTE: Números zerados (0%, R$0, contadores em zero) devem ser IGNORADOS — são animações JavaScript que não carregam no HTML estático. Não mencione e não penalize por isso.
+
 Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
 {
   "nota": número 1-10,
