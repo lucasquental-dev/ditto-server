@@ -371,7 +371,7 @@ Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
       generationConfig: { temperature: 0, maxOutputTokens: 16384 },
       tools: [{ url_context: {} }],
       contents: [{ parts: [{ text: prompt }] }]
-    }, 4, 'gemini-2.5-pro');
+    }, 4, 'gemini-2.5-flash');
 
     const parts = geminiData.candidates?.[0]?.content?.parts || [];
     const textPart = parts.find(p => p.text && !p.thought);
