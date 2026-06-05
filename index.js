@@ -335,24 +335,41 @@ app.get('/analisar-layout', async (req, res) => {
       return res.json(resultado);
     }
 
-    const prompt = `Você é um diretor de arte sênior e especialista em UX/UI com 20 anos de experiência, avaliando o site: ${site}
+    const prompt = `Você é um Diretor de Arte Sênior e Consultor Estratégico de Negócios Digitais. Sua missão é fazer uma auditoria visual e de conversão do site: ${site}
 
-Acesse o site pelo link acima e analise o que você realmente vê — design, identidade visual, hierarquia visual, qualidade das imagens, experiência do visitante, clareza da navegação.
+Acesse o site pelo link acima usando url_context e analise o que você realmente vê — design, identidade visual, hierarquia visual, qualidade das imagens, experiência do visitante, clareza da navegação.
 
 ${dadosTecnicos}
 
-Seja justo e equilibrado. Se o site é bom, reconheça isso claramente. Se tem problemas, aponte de forma construtiva — como um consultor que quer ajudar o negócio a crescer. Use linguagem profissional e respeitosa, mesmo quando a nota for baixa.
+Este diagnóstico será usado em uma abordagem de prospecção comercial. O tom deve ser extremamente profissional, respeitoso e construtivo, mas o julgamento das notas deve ser rigoroso, realístico e preciso para diferenciar sites genéricos de sites premium.
 
-Um site pode ser bom mesmo sendo feito em Wix ou Elementor — o que importa é a execução. Julgue pelo resultado visual e pela experiência, não pela ferramenta.
+DIRETRIZES DE CALIBRAÇÃO DAS NOTAS (Rigor de Mercado):
 
-CRITÉRIOS PARA A NOTA PRINCIPAL:
-A pergunta central é: quando um visitante entra nesse site, ele sente confiança e vontade de entrar em contato?
-- Experiência visual, identidade da marca e conteúdo: peso 70%
-- Aspectos técnicos como SEO, H1, meta description: peso 30%
+Nota 1 a 4 (Baixo Impacto / Institucional Genérico):
+Sites que usam estruturas padrão/engessadas, páginas de agendamento terceirizadas puras (ex: Livance, Doctoralia) ou templates de blocos sem nenhuma customização. Características: ausência de fotos reais do profissional/equipe, falta de elementos de conversão (depoimentos, FAQ, portfólio autoral) e identidade visual inexistente ou genérica. O site apenas "existe", mas não constrói autoridade.
 
-Problemas técnicos como H1 ausente afetam principalmente a nota_seo. Eles influenciam a nota principal, mas com peso menor — não derrubam um site visualmente forte de 8 para 5.
+Nota 5 a 6 (Mediano / Funcional):
+Sites estruturados que possuem as informações básicas e funcionam bem, mas o design é previsível. Não há um trabalho forte de diferenciação de marca ou elementos visuais de alto impacto. É o "feijão com arroz" do mercado.
 
-IMPORTANTE: Números zerados (0%, R$0, contadores em zero) devem ser IGNORADOS — são animações JavaScript que não carregam no HTML estático. Não mencione e não penalize por isso.
+Nota 7 a 8 (Premium / Alta Conversão):
+Sites com forte identidade visual própria, excelente escolha tipográfica e de cores, uso de elementos ricos (vídeo ou imagens em alta definição na dobra principal, copy com posicionamento claro, seções de prova social estruturadas). O resultado final transmite exclusividade e alto valor.
+
+Nota 9 a 10 (Excepcional):
+Design fora da curva, experiência de usuário impecável e autoridade máxima instantânea.
+
+REGRAS DE AVALIAÇÃO:
+
+1. Independência de Plataforma: Não julgue a ferramenta (WordPress, Elementor, Wix, etc.), julgue a execução e a personalização.
+
+2. Sinceridade com Diplomacia: Nunca use palavras pejorativas. Use termos de negócios e posicionamento. Em vez de "o site não tem identidade visual", use "o layout atual segue uma estrutura mais genérica, o que pode diluir a percepção de exclusividade do serviço no mercado."
+
+3. O Teste da Autoridade: Sites que não mostram quem está por trás do serviço (sem fotos reais do profissional, clínica ou portfólio autoral) perdem o fator de confiança e NÃO DEVEM PASSAR DA NOTA 5 no quesito visual, pois falham na premissa básica de conversão em saúde/serviços premium.
+
+4. Ignorar Animações: Números zerados (0%, R$0, contadores em zero) devem ser IGNORADOS — são animações JavaScript que não carregam no HTML estático.
+
+PESOS DA NOTA PRINCIPAL:
+- Experiência visual, impacto de branding e presença de elementos de conversão (fotos reais, prova social, portfólio): peso 70%
+- Aspectos técnicos estruturais (SEO, H1, meta description): peso 30%
 
 Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
 {
@@ -364,7 +381,7 @@ Retorne APENAS este JSON, sem nenhum texto antes ou depois, sem markdown:
   "impacto_negocio": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
   "principais_falhas": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
   "oportunidades": ["máx 8 palavras", "máx 8 palavras", "máx 8 palavras"],
-  "conclusao": "até 120 palavras, linguagem simples e direta, tom respeitoso e construtivo."
+  "conclusao": "até 120 palavras, tom profissional e construtivo, focado em oportunidades de melhoria."
 }`;
 
     const geminiData = await geminiComRetry({
