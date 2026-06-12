@@ -303,11 +303,11 @@ app.get('/analisar-sem-site', async (req, res) => {
       nota_seo: 1,
       transmite_confianca: false,
       resumo: 'Empresa sem site próprio — presença digital incompleta.',
-      analise_nota: 'Esta empresa ainda não possui um site profissional. No cenário atual, onde a jornada do cliente começa quase sempre por uma busca online, a ausência de um site próprio representa uma lacuna significativa na estratégia de captação de novos pacientes.',
+      analise_nota: 'Esta empresa ainda não possui um site profissional. No cenário atual, onde a jornada do cliente começa quase sempre por uma busca online, a ausência de um site próprio representa uma lacuna significativa na estratégia de captação de novos clientes.',
       impacto_negocio: ['Clientes não encontram informações antes do contato', 'Credibilidade digital abaixo do potencial do negócio', 'Oportunidades de conversão perdidas diariamente'],
       principais_falhas: ['Ausência de site profissional próprio', 'Sem canal digital de apresentação da marca', 'Jornada do cliente interrompida antes do contato'],
-      oportunidades: ['Criar site profissional como prioridade estratégica', 'Estruturar presença digital completa e integrada', 'Captar pacientes 24h pelo canal digital'],
-      conclusao: 'A empresa ainda não conta com um site profissional — o que representa uma oportunidade real de crescimento. Com um site bem estruturado, é possível apresentar os serviços, construir autoridade na área e estar disponível para novos pacientes a qualquer momento, sem depender exclusivamente de indicações ou redes sociais.',
+      oportunidades: ['Criar site profissional como prioridade estratégica', 'Estruturar presença digital completa e integrada', 'Captar clientes 24h pelo canal digital'],
+      conclusao: 'A empresa ainda não conta com um site profissional — o que representa uma oportunidade real de crescimento. Com um site bem estruturado, é possível apresentar os serviços, construir autoridade na área e estar disponível para novos clientes a qualquer momento, sem depender exclusivamente de indicações ou redes sociais.',
       screenshot_url: null,
       sem_site: true
     };
