@@ -117,17 +117,27 @@ app.get('/buscar-instagram', async (req, res) => {
   try {
     const { site } = req.query;
     if (!site) return res.json({ instagram: null });
+
+    // CORREÇÃO 1: Se o "site" é na verdade um link do Instagram, retorna direto
+    if (site.includes('instagram.com/')) {
+      const igMatch = site.match(/instagram\.com\/([a-zA-Z0-9_.]{2,30})/i);
+      if (igMatch) {
+        return res.json({ instagram: '@' + igMatch[1], site_era_instagram: true });
+      }
+    }
+
     try {
       const htmlRes = await fetch(site, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
         timeout: 10000
       });
       const html = await htmlRes.text();
-      const blacklist = ['p','reel','explore','accounts','sharer','share','stories','about','legal','help','press','api','oauth','challenges','privacy','safety','username'];
+      // CORREÇÃO 2: Blacklist expandida com termos de arquivos internos do Facebook/Meta
+      const blacklist = ['p','reel','explore','accounts','sharer','share','stories','about','legal','help','press','api','oauth','challenges','privacy','safety','username','rsrc','static','cdn','embed','undefined','null','www','http','https'];
       const matches = [...html.matchAll(/instagram\.com\/([a-zA-Z0-9_.]{2,30})(?:[/"\s?]|$)/gi)];
       for (const m of matches) {
         const handle = m[1].toLowerCase();
-        if (!blacklist.includes(handle) && !handle.startsWith('_') && handle.length > 2) {
+        if (!blacklist.includes(handle) && !handle.startsWith('_') && handle.length > 2 && !handle.includes('.php') && !handle.includes('.js')) {
           return res.json({ instagram: '@' + m[1] });
         }
       }
@@ -281,6 +291,27 @@ app.get('/debug-gemini', async (req, res) => {
       contents: [{ parts: [{ text: 'Responda apenas: {"ok": true}' }] }]
     });
     res.json(geminiData);
+  } catch(e) { res.json({ erro: e.message }); }
+});
+
+// CORREÇÃO 3: Novo endpoint para diagnóstico de site quando não existe site
+app.get('/analisar-sem-site', async (req, res) => {
+  try {
+    const { nome } = req.query;
+    const resultado = {
+      nota: 1,
+      nota_seo: 1,
+      transmite_confianca: false,
+      resumo: 'Empresa sem site próprio — presença digital incompleta.',
+      analise_nota: 'Esta empresa ainda não possui um site profissional. No cenário atual, onde a jornada do cliente começa quase sempre por uma busca online, a ausência de um site próprio representa uma lacuna significativa na estratégia de captação de novos pacientes.',
+      impacto_negocio: ['Clientes não encontram informações antes do contato', 'Credibilidade digital abaixo do potencial do negócio', 'Oportunidades de conversão perdidas diariamente'],
+      principais_falhas: ['Ausência de site profissional próprio', 'Sem canal digital de apresentação da marca', 'Jornada do cliente interrompida antes do contato'],
+      oportunidades: ['Criar site profissional como prioridade estratégica', 'Estruturar presença digital completa e integrada', 'Captar pacientes 24h pelo canal digital'],
+      conclusao: 'A empresa ainda não conta com um site profissional — o que representa uma oportunidade real de crescimento. Com um site bem estruturado, é possível apresentar os serviços, construir autoridade na área e estar disponível para novos pacientes a qualquer momento, sem depender exclusivamente de indicações ou redes sociais.',
+      screenshot_url: null,
+      sem_site: true
+    };
+    res.json(resultado);
   } catch(e) { res.json({ erro: e.message }); }
 });
 
